@@ -3,13 +3,15 @@
 #define CONTROL     2
 #define TRIM        3
 #define TRIM_STORE  4
+#define HOVER		  5
 
 const String TRIM_STATE[] = {
   "STOP",
   "TRIM_RESET",
   "CONTROL",
   "TRIM",
-  "TRIM_STORE"
+  "TRIM_STORE",
+  "HOVER"
 };
 
 typedef struct _TRIMSTRUCT {
@@ -18,3 +20,6 @@ typedef struct _TRIMSTRUCT {
   int PitchTrim;
   int RollTrim;
 } TRIMSTRUCT;
+
+
+#define INCREMENT 20

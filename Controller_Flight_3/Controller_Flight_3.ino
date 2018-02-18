@@ -21,59 +21,40 @@ void setup()
   CoDrone.DroneModeChange(Flight);    // Changes the drone so that it is now in flight mode
   mySerial.begin(9600);
   trim_read();
+
+  for (int i = 0; i < 8; i++) {
+    pinMode(11 + i, INPUT);
+  }
 }
 
+byte bt[8];
+byte bt_state;
 byte TrimState = STOP;
-int Increment = 20;
+
 int Yaw, Throttle, Pitch, Roll;
-int RefreshFlag = 0;
 TRIMSTRUCT Trim;
 
 void loop()
 {
   CoDrone.Request_DroneAttitude();
-//  long oldtime = millis();
-//  while(CoDrone.receiveAttitudeSuccess==false){
-    CoDrone.Receive();
-//    if(oldtime+1000<millis()) break;
-//  }
-  
-  trimming();
-  
+  CoDrone.Receive();
+
+  control_drone();
+
   if (interval250.check()) {
     disp_serial();
   }
 }
 
-byte bt1, bt2, bt4, bt8;
-void trimming()
-{
-  bt1 = digitalRead(11); // ■ □ □ □ □ □ □ Initialize the bottom left IR sensor
-  bt2 = digitalRead(12); // □ ■ □ □ □ □ □ Initialize the bottom left IR sensor
-  bt4 = digitalRead(14); // □ □ □ ■ □ □ □ Initialize the bottom center IR sensor
-  bt8 = digitalRead(18); // □ □ □ □ □ □ ■ Initialize the bottom right IR sensor
 
+
+void control_drone()
+{
+  trans_bt_state();
   Yaw = -1 * CoDrone.AnalogScaleChange(analogRead(A3)); // YAW (turn left or right), port A3, reversed
   Throttle = CoDrone.AnalogScaleChange(analogRead(A4)); // THROTTLE (height), port A4, not reversed
   Roll = -1 * CoDrone.AnalogScaleChange(analogRead(A5)); // ROLL (tilt left or right), port A5, reversed
   Pitch = CoDrone.AnalogScaleChange(analogRead(A6)); // PITCH (tilt front or back), port A6, not reversed
-
-  //■ □ □ □ □ □ □ □
-  if (bt1 && !bt4 && !bt8) { // If the left sensor is triggered
-    TrimState = STOP;
-    //■ □ □ □ □ □ □ ■
-  } else if (bt1 && !bt4 && bt8) { // If both the left and right sensors are triggered
-    TrimState = TRIM_RESET;
-    //□ ■ □ □ □ □ □ □
-  } else if (bt2) {
-    TrimState = TRIM_STORE;
-    //□ □ □ □ □ □ □ □
-  } else if (!bt8) {  //If the right sensor is NOT triggered
-    TrimState = CONTROL;
-    //□ □ □ □ □ □ □ ■
-  } else if (bt8) {// If the right sensor IS triggered
-    TrimState = TRIM;
-  }
 
   //**************************** STOP ******************************//
   if (TrimState == STOP)
@@ -93,96 +74,11 @@ void trimming()
     delay(100);
   }
   //*************************** Control & Trim ***********************//
-  else if (TrimState == CONTROL)
-  {
-    digitalWrite(16, HIGH);
-    YAW       = Yaw;      // Set the A3 analog pin to control the Yaw
-    THROTTLE  = Throttle; // Set the A4 analog pin to control the Throttle
-    ROLL      = Roll;     // Set the A5 analog pin to control the Roll
-    PITCH     = Pitch;    // Set the A6 analog pin to control the Pitch
-    CoDrone.Control(SEND_INTERVAL); // Send the new flight commands at the SEND_INTERVAL (50ms)
+  else if (TrimState == CONTROL) {
+    joystick_control();
   }
-  else if (TrimState == TRIM)
-  {
-    digitalWrite(16, LOW);
-    if (Yaw > 50) {
-      Trim.YawTrim = Trim.YawTrim + Increment;
-      CoDrone.Buzz(2000, 4);
-      CoDrone.Buzz(4000, 4);
-      RefreshFlag = 1;
-    }
-    if (Yaw < -50) {
-      Trim.YawTrim = Trim.YawTrim - Increment;
-      CoDrone.Buzz(4000, 4);
-      CoDrone.Buzz(2000, 4);
-      RefreshFlag = 1;
-    }
-    if (Throttle > 50) {
-      Trim.ThrottleTrim = Trim.ThrottleTrim + Increment;
-      CoDrone.Buzz(2000, 4);
-      CoDrone.Buzz(4000, 4);
-      RefreshFlag = 1;
-    }
-    if (Throttle < -50) {
-      Trim.ThrottleTrim = Trim.ThrottleTrim - Increment;
-      CoDrone.Buzz(4000, 4);
-      CoDrone.Buzz(2000, 4);
-      RefreshFlag = 1;
-    }
-    if (Pitch > 50) {
-      Trim.PitchTrim = Trim.PitchTrim + Increment;
-      CoDrone.Buzz(2000, 4);
-      CoDrone.Buzz(4000, 4);
-      RefreshFlag = 1;
-    }
-    if (Pitch < -50) {
-      Trim.PitchTrim = Trim.PitchTrim - Increment;
-      CoDrone.Buzz(4000, 4);
-      CoDrone.Buzz(2000, 4);
-      RefreshFlag = 1;
-    }
-    if (Roll > 50) {
-      Trim.RollTrim = Trim.RollTrim + Increment;
-      CoDrone.Buzz(2000, 4);
-      CoDrone.Buzz(4000, 4);
-      RefreshFlag = 1;
-    }
-    if (Roll < -50) {
-      Trim.RollTrim = Trim.RollTrim - Increment;
-      CoDrone.Buzz(4000, 4);
-      CoDrone.Buzz(2000, 4);
-      RefreshFlag = 1;
-    }
-
-    if (Trim.YawTrim >= 600) {
-      Trim.YawTrim = 600;
-    }
-    else if (Trim.YawTrim <= -600) {
-      Trim.YawTrim = -600;
-    }
-    if (Trim.RollTrim >= 600) {
-      Trim.RollTrim = 600;
-    }
-    else if (Trim.RollTrim <= -600) {
-      Trim.RollTrim = -600;
-    }
-    if (Trim.PitchTrim >= 600) {
-      Trim.PitchTrim = 600;
-    }
-    else if (Trim.PitchTrim <= -600) {
-      Trim.PitchTrim = -600;
-    }
-    if (Trim.ThrottleTrim >= 600) {
-      Trim.ThrottleTrim = 600;
-    }
-    else if (Trim.ThrottleTrim <= -600) {
-      Trim.ThrottleTrim = -600;
-    }
-    if (RefreshFlag == 1) {
-      CoDrone.Set_TrimAll(Trim.RollTrim, Trim.PitchTrim, Trim.YawTrim, Trim.ThrottleTrim, 0);
-      delay(150);
-      RefreshFlag = 0;
-    }
+  else if (TrimState == TRIM) {
+    trimming();
   } else if (TrimState == TRIM_STORE) {
     trim_store();
     CoDrone.Buzz(7000, 4);
@@ -200,14 +96,11 @@ void disp_serial()
   char s[32];
   clearAndHome();
 
-  mySerial.print("bt1: ");
-  mySerial.print(bt1);
-  mySerial.print(" bt2: ");
-  mySerial.print(bt2);
-  mySerial.print(" bt4: ");
-  mySerial.print(bt4);
-  mySerial.print(" bt8: ");
-  mySerial.print(bt8);
+  mySerial.print("bt_state: ");
+  for (int i = 0; i < 8; i++) {
+    mySerial.print(bt[i]);
+    mySerial.print(" ");
+  }
 
   mySerial.print(" TrimState: ");
   mySerial.print(TRIM_STATE[TrimState]);
@@ -253,7 +146,7 @@ void disp_serial()
 
   mySerial.println();
   //////////////////////////////////////////
-    mySerial.print("[JOYSTICK]\n");
+  mySerial.print("[JOYSTICK]\n");
   mySerial.print(" YAW: ");
   sprintf(s, "%+5d", Yaw);
   mySerial.print(s);
@@ -272,7 +165,7 @@ void disp_serial()
 
   mySerial.println();
 
-////////////////////////////////////////
+  ////////////////////////////////////////
   mySerial.print("[ATTITUDE]\n");
   mySerial.print(" YAW: ");
   sprintf(s, "%+5d", AttitudeYAW);
@@ -317,3 +210,125 @@ void trim_read()
   }
 }
 
+
+void trimming()
+{
+  static int RefreshFlag = 0;
+  
+  if (Yaw > 50) {
+    Trim.YawTrim = Trim.YawTrim + INCREMENT;
+    CoDrone.Buzz(2000, 4);
+    CoDrone.Buzz(4000, 4);
+    RefreshFlag = 1;
+  }
+  if (Yaw < -50) {
+    Trim.YawTrim = Trim.YawTrim - INCREMENT;
+    CoDrone.Buzz(4000, 4);
+    CoDrone.Buzz(2000, 4);
+    RefreshFlag = 1;
+  }
+  if (Throttle > 50) {
+    Trim.ThrottleTrim = Trim.ThrottleTrim + INCREMENT;
+    CoDrone.Buzz(2000, 4);
+    CoDrone.Buzz(4000, 4);
+    RefreshFlag = 1;
+  }
+  if (Throttle < -50) {
+    Trim.ThrottleTrim = Trim.ThrottleTrim - INCREMENT;
+    CoDrone.Buzz(4000, 4);
+    CoDrone.Buzz(2000, 4);
+    RefreshFlag = 1;
+  }
+  if (Pitch > 50) {
+    Trim.PitchTrim = Trim.PitchTrim + INCREMENT;
+    CoDrone.Buzz(2000, 4);
+    CoDrone.Buzz(4000, 4);
+    RefreshFlag = 1;
+  }
+  if (Pitch < -50) {
+    Trim.PitchTrim = Trim.PitchTrim - INCREMENT;
+    CoDrone.Buzz(4000, 4);
+    CoDrone.Buzz(2000, 4);
+    RefreshFlag = 1;
+  }
+  if (Roll > 50) {
+    Trim.RollTrim = Trim.RollTrim + INCREMENT;
+    CoDrone.Buzz(2000, 4);
+    CoDrone.Buzz(4000, 4);
+    RefreshFlag = 1;
+  }
+  if (Roll < -50) {
+    Trim.RollTrim = Trim.RollTrim - INCREMENT;
+    CoDrone.Buzz(4000, 4);
+    CoDrone.Buzz(2000, 4);
+    RefreshFlag = 1;
+  }
+
+  if (Trim.YawTrim >= 600) {
+    Trim.YawTrim = 600;
+  }
+  else if (Trim.YawTrim <= -600) {
+    Trim.YawTrim = -600;
+  }
+  if (Trim.RollTrim >= 600) {
+    Trim.RollTrim = 600;
+  }
+  else if (Trim.RollTrim <= -600) {
+    Trim.RollTrim = -600;
+  }
+  if (Trim.PitchTrim >= 600) {
+    Trim.PitchTrim = 600;
+  }
+  else if (Trim.PitchTrim <= -600) {
+    Trim.PitchTrim = -600;
+  }
+  if (Trim.ThrottleTrim >= 600) {
+    Trim.ThrottleTrim = 600;
+  }
+  else if (Trim.ThrottleTrim <= -600) {
+    Trim.ThrottleTrim = -600;
+  }
+  if (RefreshFlag == 1) {
+    CoDrone.Set_TrimAll(Trim.RollTrim, Trim.PitchTrim, Trim.YawTrim, Trim.ThrottleTrim, 0);
+    delay(150);
+    RefreshFlag = 0;
+  }
+}
+
+
+void joystick_control() {
+  YAW       = Yaw;      // Set the A3 analog pin to control the Yaw
+  THROTTLE  = Throttle; // Set the A4 analog pin to control the Throttle
+  ROLL      = Roll;     // Set the A5 analog pin to control the Roll
+  PITCH     = Pitch;    // Set the A6 analog pin to control the Pitch
+  CoDrone.Control(SEND_INTERVAL); // Send the new flight commands at the SEND_INTERVAL (50ms)
+}
+
+
+
+void trans_bt_state(){
+  
+  for (int i = 0; i < 8; i++) {
+    bt[i] = digitalRead(11 + i);
+  }
+  bt_state = 0;
+  for (int i = 0; i < 8; i++) {
+    bt_state |= (bt[i] << (7 - i));
+  }
+    switch (bt_state) {
+    case 0b00000000:
+      TrimState = CONTROL; break;
+    case 0b10000000:
+      TrimState = STOP; break;
+    case 0b01000000:
+      TrimState = TRIM_STORE; break;
+    case 0b00000010:
+      TrimState = HOVER ; break;
+    case 0b00000001:
+      TrimState = TRIM; break;
+    case 0b10000001:
+      TrimState = TRIM_RESET; break;
+    default:
+      TrimState = CONTROL; break;
+  }
+}
