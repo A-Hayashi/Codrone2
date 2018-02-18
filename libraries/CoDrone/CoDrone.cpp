@@ -2190,9 +2190,9 @@ void CoDroneClass::ReceiveEventCheck()
 		else if (receiveDtype == dType_Attitude)
 	  {  			
 	  		  	
-				attitudeRoll		= ((droneAttitude[1] << 8) | (droneAttitude[0]  & 0xff));
-				attitudePitch	= ((droneAttitude[3] << 8) | (droneAttitude[2]  & 0xff));
-				attitudeYaw		= ((droneAttitude[5] << 8) | (droneAttitude[4]  & 0xff));
+				attitudeRoll	= 		droneAttitude[1];
+				attitudePitch	=		droneAttitude[0];
+				attitudeYaw		=		droneAttitude[2];
 				
 				receiveAttitudeSuccess = 1;
 																					

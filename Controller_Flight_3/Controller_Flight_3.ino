@@ -5,10 +5,11 @@
   Control - Analog Joystick Control
   This is a basic remote control program for the drone in flight mode
 *******************************************************************/
-#include <CoDrone.h> // The codrone library that holds all the background files for thiss
+#include "CoDrone.h" // The codrone library that holds all the background files for thiss
 #include "SoftwareSerial.h"
 #include "Metro.h"
 #include "EEPROM.h"
+#include "Controller_Flight_3.h"
 
 SoftwareSerial mySerial(27, 28); /* Rx,Tx */
 Metro interval250 = Metro(250);
@@ -22,36 +23,23 @@ void setup()
   trim_read();
 }
 
-#define STOP        0
-#define TRIM_RESET  1
-#define CONTROL     2
-#define TRIM        3
-#define TRIM_STORE  4
-const String TRIM_STATE[] = {
-  "STOP",
-  "TRIM_RESET",
-  "CONTROL",
-  "TRIM",
-  "TRIM_STORE"
-};
 byte TrimState = STOP;
-
-//Set your increment size here
 int Increment = 20;
 int Yaw, Throttle, Pitch, Roll;
 int RefreshFlag = 0;
-
-typedef struct _TRIMSTRUCT {
-  int YawTrim;
-  int ThrottleTrim;
-  int PitchTrim;
-  int RollTrim;
-} TRIMSTRUCT;
 TRIMSTRUCT Trim;
 
 void loop()
 {
+  CoDrone.Request_DroneAttitude();
+//  long oldtime = millis();
+//  while(CoDrone.receiveAttitudeSuccess==false){
+    CoDrone.Receive();
+//    if(oldtime+1000<millis()) break;
+//  }
+  
   trimming();
+  
   if (interval250.check()) {
     disp_serial();
   }
@@ -261,6 +249,41 @@ void disp_serial()
 
   mySerial.print(" PITCH: ");
   sprintf(s, "%+5d", Pitch);
+  mySerial.print(s);
+
+  mySerial.println();
+  //////////////////////////////////////////
+    mySerial.print("[JOYSTICK]\n");
+  mySerial.print(" YAW: ");
+  sprintf(s, "%+5d", Yaw);
+  mySerial.print(s);
+
+  mySerial.print(" THROTTLE: ");
+  sprintf(s, "%+5d", Throttle);
+  mySerial.print(s);
+
+  mySerial.print(" ROLL: ");
+  sprintf(s, "%+5d", Roll);
+  mySerial.print(s);
+
+  mySerial.print(" PITCH: ");
+  sprintf(s, "%+5d", Pitch);
+  mySerial.print(s);
+
+  mySerial.println();
+
+////////////////////////////////////////
+  mySerial.print("[ATTITUDE]\n");
+  mySerial.print(" YAW: ");
+  sprintf(s, "%+5d", AttitudeYAW);
+  mySerial.print(s);
+
+  mySerial.print(" ROLL: ");
+  sprintf(s, "%+5d", AttitudeROLL);
+  mySerial.print(s);
+
+  mySerial.print(" PITCH: ");
+  sprintf(s, "%+5d", AttitudePITCH);
   mySerial.print(s);
 
   mySerial.println();
