@@ -69,19 +69,18 @@ void get_dronedata()
     CoDrone.Request_DroneAttitude();
     CoDrone.Request_ImuRawAndAngle();
     CoDrone.Request_Pressure();
-  } else if (interval5000.check()) {
+  }
+  if (interval5000.check()) {
     CoDrone.Request_DroneGyroBias();
     CoDrone.Request_TrimAll();
     CoDrone.Request_Temperature();
-  } else {
-    CoDrone.Receive();
   }
+  CoDrone.Receive();
 }
 
 void receive_pcdata()
 {
 }
-
 
 void send_pcdata()
 {
@@ -93,7 +92,10 @@ void send_pcdata()
     Send_ImuRawAndAngl();
     Send_Pressure();
     Send_IrMessage();
-  } else if (interval2500.check()) {
+    Send_AnalogStick();
+  }
+
+  if (interval2500.check()) {
     Send_GyroBias();
     Send_TrimAll();
     Send_Temperature();
@@ -112,6 +114,22 @@ void Send_Attitude()
   data[4] = LowB(CoDrone.attitudeYaw);
   data[5] = HighB(CoDrone.attitudeYaw);
   Send_Processing(tType_Attitude, data, len);
+}
+
+
+void Send_AnalogStick()
+{
+  byte data[12];
+  byte len = 8;
+  data[0] = LowB(Roll);
+  data[1] = HighB(Roll);
+  data[2] = LowB(Pitch);
+  data[3] = HighB(Pitch);
+  data[4] = LowB(Yaw);
+  data[5] = HighB(Yaw);
+  data[6] = LowB(Throttle);
+  data[7] = HighB(Throttle);
+  Send_Processing(tType_AnalogStick, data, len);
 }
 
 
@@ -322,7 +340,7 @@ void state_GainTune(boolean state_change)
 
 }
 
-void Send_Processing(byte _cType, byte _data[], byte _length)
+void Send_Processing(byte _cType, byte *_data, byte _length)
 {
   byte _packet[30];
 
@@ -337,7 +355,7 @@ void Send_Processing(byte _cType, byte _data[], byte _length)
   _packet[3] = _length;
 
   //DATA
-  for (int i = 0; i < _length + 3 ; i++)
+  for (int i = 0; i < _length ; i++)
   {
     _packet[i + 4] = _data[i];
   }
