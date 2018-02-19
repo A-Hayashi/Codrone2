@@ -1,30 +1,54 @@
-#define STOP        0
-#define EEP_READ 	1
-#define CONTROL     2
-#define TRIM        3
-#define EEP_WRITE   4
-#define HOVER	    5
-#define GAIN_TUNE   6
-
-const String TRIM_STATE[] = {
-  "STOP",
-  "EEP_READ",
-  "CONTROL",
-  "TRIM",
-  "EEP_WRITE",
-  "HOVER",
-  "GAIN_TUNE"
-};
 
 typedef struct _EEPSTRUCT {
   int YawTrim;
   int ThrottleTrim;
   int PitchTrim;
   int RollTrim;
-  double k_p;
-  double k_p2;
+  double Yaw_Kp;
+  double Yaw_Ti;
+  double Yaw_Td;
+  double Throttle_Kp;
+  double Throttle_Ti;
+  double Throttle_Td;
+  double Pich_Kp;
+  double Pich_Ti;
+  double Pich_Td;
+  double Roll_Kp;
+  double Roll_Ti;
+  double Roll_Td;
 } EEPSTRUCT;
 
+#define EEP_START_ADRESS 20
+#define RANGE_CHECK(x,min,max) ((x= (x<min  ? min : x<max ? x : max)))
+#define LowB(x) (x & 0xFF)
+#define HighB(x) (x >> 8)
 
-#define INCREMENT 20
-//#define SAMPLING_PERIOD   0.1   //ƒTƒ“ƒvƒŠƒ“ƒOŽüŠú
+enum tType
+{
+	tType_Attitude,
+	tType_GyroBias,
+	tType_TrimAll,
+	tType_IrMessage,
+	tType_ImuRawAndAngl,
+	tType_Pressure,
+	tType_Temperature,
+};
+
+enum rType
+{
+	rType_Command,
+	rType_TrimAll,
+	rType_Gains
+};
+
+enum cmdType
+{
+	cmdType_Control,
+	cmdType_EEP_Write,
+	cmdType_EEP_Read,
+	cmdType_TrimTune,
+  cmdType_TrimSet,
+	cmdType_Stop,
+	cmdType_Hover,
+	cmdType_GainTune,
+};

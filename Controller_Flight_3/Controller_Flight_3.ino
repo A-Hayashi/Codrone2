@@ -12,9 +12,10 @@
 #include "Controller_Flight_3.h"
 
 SoftwareSerial mySerial(27, 28); /* Rx,Tx */
-Metro interval250 = Metro(250);
-Metro interval100 = Metro(100);
 EEPSTRUCT EEP;
+int Yaw, Throttle, Pitch, Roll;
+byte IR_Sensor;
+
 void setup()
 {
   CoDrone.begin(115200);  // sets up the connection to the drone using the bluetooth module at 115200bps (bits per second)
@@ -22,232 +23,344 @@ void setup()
   CoDrone.DroneModeChange(Flight);    // Changes the drone so that it is now in flight mode
   mySerial.begin(9600);
   eep_read();
-  EEP.k_p  = 0;
-  EEP.k_p2 = 0;
   for (int i = 0; i < 8; i++) {
     pinMode(11 + i, INPUT);
   }
 }
 
-byte bt[8];
-byte bt_state;
-byte TrimState = STOP;
-
-int Yaw, Throttle, Pitch, Roll;
-
-
-void loop()
+void get_analog_stick(void)
 {
-  CoDrone.Request_DroneAttitude();
-  CoDrone.Receive();
-
-  control_drone();
-
-  if (interval250.check()) {
-    disp_serial();
-  }
-}
-
-void control_drone()
-{
-  trans_bt_state();
   Yaw = -1 * CoDrone.AnalogScaleChange(analogRead(A3)); // YAW (turn left or right), port A3, reversed
   Throttle = CoDrone.AnalogScaleChange(analogRead(A4)); // THROTTLE (height), port A4, not reversed
   Roll = -1 * CoDrone.AnalogScaleChange(analogRead(A5)); // ROLL (tilt left or right), port A5, reversed
   Pitch = CoDrone.AnalogScaleChange(analogRead(A6)); // PITCH (tilt front or back), port A6, not reversed
+}
 
-  //**************************** STOP ******************************//
-  if (TrimState == STOP)
-  {
-    CoDrone.FlightEvent(Stop); // Stop the CoDrone
-    // CoDrone.FlightEvent(Landing); // Land the CoDrone. You can choose either of these.
+
+void get_ir_sensor()
+{
+  byte ir[8];
+
+  for (int i = 0; i < 8; i++) {
+    ir[i] = digitalRead(11 + i);
   }
-  //*************************** Trim Reset ***********************//
-  else if (TrimState == EEP_READ)
-  {
-    eep_read();
-    CoDrone.Set_TrimAll(EEP.RollTrim, EEP.PitchTrim, EEP.YawTrim, EEP.ThrottleTrim, 0);
-    CoDrone.Buzz(7000, 4);
-    CoDrone.Buzz(4000, 4);
-    CoDrone.Buzz(2000, 4);
-    CoDrone.Buzz(5000, 4);
-    delay(100);
-  }
-  //*************************** Control & Trim ***********************//
-  else if (TrimState == CONTROL) {
-    joystick_control();
-  }
-  else if (TrimState == TRIM) {
-    trimming();
-  } else if (TrimState == EEP_WRITE) {
-    eep_write();
-    CoDrone.Buzz(7000, 4);
-    CoDrone.Buzz(4000, 4);
-    CoDrone.Buzz(2000, 4);
-    CoDrone.Buzz(5000, 4);
-    delay(100);
-  } else if (TrimState == HOVER) {
-    hovering();
-  }else if(TrimState == GAIN_TUNE){
-    gain_tune();
+  IR_Sensor = 0;
+  for (int i = 0; i < 8; i++) {
+    IR_Sensor |= (ir[i] << (7 - i));
   }
 }
 
-double error_now;       //今回偏差
-double error_before;    //前回偏差
-double D_now;           //今回操作量
-double D_before;        //前回操作量
-double V_ref = 0;       //目標値
-double V_now;           //現在値
-
-double error_now2;       //今回偏差
-double error_before2;    //前回偏差
-double D_now2;           //今回操作量
-double D_before2;        //前回操作量
-double V_ref2 = 0;       //目標値
-double V_now2;           //現在値
-
-void hovering()
+void loop()
 {
+  receive_pcdata();
+  get_dronedata();
+  get_ir_sensor();
+  get_analog_stick();
+  state_machine();
+  send_pcdata();
+}
+
+void get_dronedata()
+{
+  Metro interval100 = Metro(100);
+  Metro interval5000 = Metro(5000);
+
   if (interval100.check()) {
-    V_now = AttitudePITCH;      //AD変換した値を現在値に代入
-    error_now = V_ref - V_now;  //目標値と現在値の差から現在偏差を求める
-    D_now = D_before + EEP.k_p * (error_now - error_before); 
-    D_before = D_now;         //今回PI演算値を前回演算値として保存
-    error_before = error_now; //今回偏差を前回偏差として保存
-    
-    V_now2 = AttitudeROLL;      //AD変換した値を現在値に代入
-    error_now2 = V_ref2 - V_now2;  //目標値と現在値の差から現在偏差を求める
-    D_now2 = D_before2 + EEP.k_p2 * (error_now2 - error_before2); 
-    D_before2 = D_now2;         //今回PI演算値を前回演算値として保存
-    error_before2 = error_now2; //今回偏差を前回偏差として保存
+    CoDrone.Request_DroneAttitude();
+    CoDrone.Request_ImuRawAndAngle();
+    CoDrone.Request_Pressure();
+  } else if (interval5000.check()) {
+    CoDrone.Request_DroneGyroBias();
+    CoDrone.Request_TrimAll();
+    CoDrone.Request_Temperature();
+  } else {
+    CoDrone.Receive();
   }
-  PITCH = D_now;
-  ROLL  = D_now2;     // Set the A5 analog pin to control the Roll
-  YAW   = Yaw;      // Set the A3 analog pin to control the Yaw
+}
+
+void receive_pcdata()
+{
+}
+
+
+void send_pcdata()
+{
+  Metro interval50 = Metro(50);
+  Metro interval2500 = Metro(2500);
+
+  if (interval50.check()) {
+    Send_Attitude();
+    Send_ImuRawAndAngl();
+    Send_Pressure();
+    Send_IrMessage();
+  } else if (interval2500.check()) {
+    Send_GyroBias();
+    Send_TrimAll();
+    Send_Temperature();
+  }
+}
+
+
+void Send_Attitude()
+{
+  byte data[12];
+  byte len = 6;
+  data[0] = LowB(CoDrone.attitudeRoll);
+  data[1] = HighB(CoDrone.attitudeRoll);
+  data[2] = LowB(CoDrone.attitudePitch);
+  data[3] = HighB(CoDrone.attitudePitch);
+  data[4] = LowB(CoDrone.attitudeYaw);
+  data[5] = HighB(CoDrone.attitudeYaw);
+  Send_Processing(tType_Attitude, data, len);
+}
+
+
+void Send_GyroBias()
+{
+  byte data[12];
+  byte len = 6;
+  data[0] = CoDrone.droneGyroBias[0]; //Roll
+  data[1] = CoDrone.droneGyroBias[1];
+  data[2] = CoDrone.droneGyroBias[2]; //Pitch
+  data[3] = CoDrone.droneGyroBias[3];
+  data[4] = CoDrone.droneGyroBias[4]; //Yaw
+  data[5] = CoDrone.droneGyroBias[5];
+  Send_Processing(tType_GyroBias, data, len);
+}
+
+
+void Send_TrimAll()
+{
+  byte data[12];
+  byte len = 10;
+  data[0] = CoDrone.droneTrimAll[0];  //Roll
+  data[1] = CoDrone.droneTrimAll[1];
+  data[2] = CoDrone.droneTrimAll[2];  //Pitch
+  data[3] = CoDrone.droneTrimAll[3];
+  data[4] = CoDrone.droneTrimAll[4];  //Yaw
+  data[5] = CoDrone.droneTrimAll[5];
+  data[6] = CoDrone.droneTrimAll[6];  //Throttle
+  data[7] = CoDrone.droneTrimAll[7];
+  data[8] = CoDrone.droneTrimAll[8];  //Wheel
+  data[9] = CoDrone.droneTrimAll[9];
+  Send_Processing(tType_TrimAll, data, len);
+}
+
+
+void Send_IrMessage()
+{
+  byte data[12];
+  byte len = 5;
+  data[0] = CoDrone.droneIrMassage[0];  //Direction
+  data[1] = CoDrone.droneIrMassage[1];
+  data[2] = CoDrone.droneIrMassage[2];
+  data[3] = CoDrone.droneIrMassage[3];
+  data[4] = CoDrone.droneIrMassage[4];
+  Send_Processing(tType_IrMessage, data, len);
+}
+
+
+void Send_ImuRawAndAngl()
+{
+  byte data[18];
+  byte len = 18;
+  data[0] = LowB(CoDrone.droneImuRawAndAngle[0]);   //AccX
+  data[1] = HighB(CoDrone.droneImuRawAndAngle[0]);
+  data[2] = LowB(CoDrone.droneImuRawAndAngle[1]);   //AccY
+  data[3] = HighB(CoDrone.droneImuRawAndAngle[1]);
+  data[4] = LowB(CoDrone.droneImuRawAndAngle[2]);   //AccZ
+  data[5] = HighB(CoDrone.droneImuRawAndAngle[2]);
+  data[6] = LowB(CoDrone.droneImuRawAndAngle[3]);   //GyroRoll
+  data[7] = HighB(CoDrone.droneImuRawAndAngle[3]);
+  data[8] = LowB(CoDrone.droneImuRawAndAngle[4]);   //GyroPitch
+  data[9] = HighB(CoDrone.droneImuRawAndAngle[4]);
+  data[10] = LowB(CoDrone.droneImuRawAndAngle[5]);  //GyroYaw
+  data[11] = HighB(CoDrone.droneImuRawAndAngle[5]);
+  data[12] = LowB(CoDrone.droneImuRawAndAngle[6]);  //AngleRoll
+  data[13] = HighB(CoDrone.droneImuRawAndAngle[6]);
+  data[14] = LowB(CoDrone.droneImuRawAndAngle[7]);  //AnglePitch
+  data[15] = HighB(CoDrone.droneImuRawAndAngle[7]);
+  data[16] = LowB(CoDrone.droneImuRawAndAngle[8]);  //AngleRoll
+  data[17] = HighB(CoDrone.droneImuRawAndAngle[8]);
+
+  Send_Processing(tType_ImuRawAndAngl, data, len);
+}
+
+void Send_Pressure()
+{
+  byte data[16];
+  byte len = 16;
+
+  for (int i = 0; i < len; i++) {
+    data[i] = CoDrone.dronePressure[i];
+  }
+  Send_Processing(tType_Pressure, data, len);
+}
+
+void Send_Temperature()
+{
+  byte data[8];
+  byte len = 8;
+
+  for (int i = 0; i < len; i++) {
+    data[0] = CoDrone.droneTemperature[i];
+  }
+  Send_Processing(tType_Temperature, data, len);
+}
+
+
+
+byte Command;
+byte trans_state(byte state)
+{
+  static byte next_state;
+  next_state = Command;
+  return next_state;
+}
+
+void state_machine()
+{
+  static byte old_state = cmdType_Control;
+  byte state = cmdType_Control;
+  boolean state_change = false;
+
+  state = trans_state(state);
+
+  if (old_state != state) {
+    state_change = true;
+  } else {
+    state_change = false;
+  }
+
+  switch (state) {
+    case cmdType_Control:
+      state_Control(state_change);
+      break;
+    case cmdType_EEP_Write:
+      state_EEP_Write(state_change);
+      break;
+    case cmdType_EEP_Read:
+      state_EEP_Read(state_change);
+      break;
+    case cmdType_TrimTune:
+      state_TrimTune(state_change);
+      break;
+    case cmdType_TrimSet:
+      state_TrimSet(state_change);
+      break;
+    case cmdType_Stop:
+      state_Stop(state_change);
+      break;
+    case cmdType_Hover:
+      state_Hover(state_change);
+      break;
+    case cmdType_GainTune:
+      state_GainTune(state_change);
+      break;
+    default:
+      state_Control(state_change);
+      break;
+  }
+  old_state = state;
+}
+
+void state_Control(boolean state_change)
+{
+  YAW       = Yaw;      // Set the A3 analog pin to control the Yaw
   THROTTLE  = Throttle; // Set the A4 analog pin to control the Throttle
+  ROLL      = Roll;     // Set the A5 analog pin to control the Roll
+  PITCH     = Pitch;    // Set the A6 analog pin to control the Pitch
   CoDrone.Control(SEND_INTERVAL); // Send the new flight commands at the SEND_INTERVAL (50ms)
 }
 
-void disp_serial()
+void state_EEP_Write(boolean state_change)
 {
-  char s[32];
-  clearAndHome();
-
-  mySerial.print("bt_state: ");
-  for (int i = 0; i < 8; i++) {
-    mySerial.print(bt[i]);
-    mySerial.print(" ");
+  if (state_change) {
+    eep_write();
+    CoDrone.Buzz(2000, 4);
+    CoDrone.Buzz(4000, 4);
   }
+}
 
-  mySerial.print(" TrimState: ");
-  mySerial.print(TRIM_STATE[TrimState]);
-  mySerial.println();
+void state_EEP_Read(boolean state_change)
+{
+  if (state_change) {
+    eep_read();
+    CoDrone.Buzz(2000, 4);
+    CoDrone.Buzz(4000, 4);
+  }
+}
 
-  /////////////////////////////////////////
+void state_TrimTune(boolean state_change)
+{
+  EEP.YawTrim = 0;
+}
 
-  mySerial.print("[TRIM]\n");
-  mySerial.print(" YAW: ");
-  sprintf(s, "%+5d", EEP.YawTrim);
-  mySerial.print(s);
 
-  mySerial.print(" THROTTLE: ");
-  sprintf(s, "%+5d", EEP.ThrottleTrim);
-  mySerial.print(s);
+void state_TrimSet(boolean state_change)
+{
+  if (state_change) {
+    CoDrone.Set_TrimAll(EEP.RollTrim, EEP.PitchTrim, EEP.YawTrim, EEP.ThrottleTrim, 0);
+    CoDrone.Buzz(2000, 4);
+    CoDrone.Buzz(4000, 4);
+  }
+}
 
-  mySerial.print(" ROLL: ");
-  sprintf(s, "%+5d", EEP.RollTrim);
-  mySerial.print(s);
 
-  mySerial.print(" PITCH: ");
-  sprintf(s, "%+5d", EEP.PitchTrim);
-  mySerial.print(s);
+void state_Stop(boolean state_change)
+{
+  CoDrone.FlightEvent(Stop);
+}
 
-  mySerial.println();
-  //////////////////////////////////////////
-  mySerial.print("[JOYSTICK]\n");
-  mySerial.print(" YAW: ");
-  sprintf(s, "%+5d", Yaw);
-  mySerial.print(s);
+void state_Hover(boolean state_change)
+{
 
-  mySerial.print(" THROTTLE: ");
-  sprintf(s, "%+5d", Throttle);
-  mySerial.print(s);
+}
 
-  mySerial.print(" ROLL: ");
-  sprintf(s, "%+5d", Roll);
-  mySerial.print(s);
+void state_GainTune(boolean state_change)
+{
 
-  mySerial.print(" PITCH: ");
-  sprintf(s, "%+5d", Pitch);
-  mySerial.print(s);
+}
 
-  mySerial.println();
-  //////////////////////////////////////////
-  mySerial.print("[JOYSTICK]\n");
-  mySerial.print(" YAW: ");
-  sprintf(s, "%+5d", Yaw);
-  mySerial.print(s);
+void Send_Processing(byte _cType, byte _data[], byte _length)
+{
+  byte _packet[30];
 
-  mySerial.print(" THROTTLE: ");
-  sprintf(s, "%+5d", Throttle);
-  mySerial.print(s);
+  //START CODE
+  _packet[0] = START1;
+  _packet[1] = START2;
 
-  mySerial.print(" ROLL: ");
-  sprintf(s, "%+5d", Roll);
-  mySerial.print(s);
+  //CONTROL TYPE
+  _packet[2] = _cType;
 
-  mySerial.print(" PITCH: ");
-  sprintf(s, "%+5d", Pitch);
-  mySerial.print(s);
+  //LENGTH
+  _packet[3] = _length;
 
-  mySerial.println();
+  //DATA
+  for (int i = 0; i < _length + 3 ; i++)
+  {
+    _packet[i + 4] = _data[i];
+  }
+  mySerial.write(_packet, _length + 4);
+}
 
-  ////////////////////////////////////////
-  mySerial.print("[ATTITUDE]\n");
-  mySerial.print(" YAW: ");
-  sprintf(s, "%+5d", AttitudeYAW);
-  mySerial.print(s);
 
-  mySerial.print(" ROLL: ");
-  sprintf(s, "%+5d", AttitudeROLL);
-  mySerial.print(s);
+void eep_write()
+{
+  byte* p = (byte*)&EEP;
+  for (int j = 0; j < sizeof(EEPSTRUCT); j++) {
+    EEPROM.write(j + EEP_START_ADRESS, *p);
+    p++;
+  }
+}
 
-  mySerial.print(" PITCH: ");
-  sprintf(s, "%+5d", AttitudePITCH);
-  mySerial.print(s);
-
-  mySerial.println();
-
-  ////////////////////////////////////
-
-  mySerial.print("[PI_PITCH]\n");
-  
-  mySerial.print(" k_p: ");
-  mySerial.print(EEP.k_p,5);
-
-  mySerial.print(" k_p2: ");
-  mySerial.print(EEP.k_p2,5);
-  mySerial.println();
-  
-  mySerial.print(" error_now: ");
-  mySerial.print(error_now,5);
-
-  mySerial.print(" D_now: ");
-  mySerial.print(D_now,5);
-
-  mySerial.print(" V_now: ");
-  mySerial.print(V_now,5);
-  mySerial.println();
-  
-  mySerial.print(" error_now2: ");
-  mySerial.print(error_now2,5);
-
-  mySerial.print(" D_now2: ");
-  mySerial.print(D_now2,5);
-
-  mySerial.print(" V_now2: ");
-  mySerial.print(V_now2,5);
+void eep_read()
+{
+  byte* p = (byte*)&EEP;
+  for (int j = 0; j < sizeof(EEPSTRUCT); j++) {
+    *p = EEPROM.read(j + EEP_START_ADRESS);
+    p++;
+  }
 }
 
 void clearAndHome()
@@ -257,160 +370,5 @@ void clearAndHome()
   mySerial.write(27); // ESC
   mySerial.print("[H"); // cursor to home
 }
-
-void eep_write()
-{
-  byte* p = (byte*)&EEP;
-  for (int j = 0; j < sizeof(EEPSTRUCT); j++) {
-    EEPROM.write(j, *p);
-    p++;
-  }
-}
-
-void eep_read()
-{
-  byte* p = (byte*)&EEP;
-  for (int j = 0; j < sizeof(EEPSTRUCT); j++) {
-    *p = EEPROM.read(j);
-    p++;
-  }
-}
-
-void trimming()
-{
-  static int RefreshFlag = 0;
-
-  if (Yaw > 50) {
-    EEP.YawTrim = EEP.YawTrim + INCREMENT;
-    CoDrone.Buzz(2000, 4);
-    CoDrone.Buzz(4000, 4);
-    RefreshFlag = 1;
-  }
-  if (Yaw < -50) {
-    EEP.YawTrim = EEP.YawTrim - INCREMENT;
-    CoDrone.Buzz(4000, 4);
-    CoDrone.Buzz(2000, 4);
-    RefreshFlag = 1;
-  }
-  if (Throttle > 50) {
-    EEP.ThrottleTrim = EEP.ThrottleTrim + INCREMENT;
-    CoDrone.Buzz(2000, 4);
-    CoDrone.Buzz(4000, 4);
-    RefreshFlag = 1;
-  }
-  if (Throttle < -50) {
-    EEP.ThrottleTrim = EEP.ThrottleTrim - INCREMENT;
-    CoDrone.Buzz(4000, 4);
-    CoDrone.Buzz(2000, 4);
-    RefreshFlag = 1;
-  }
-  if (Pitch > 50) {
-    EEP.PitchTrim = EEP.PitchTrim + INCREMENT;
-    CoDrone.Buzz(2000, 4);
-    CoDrone.Buzz(4000, 4);
-    RefreshFlag = 1;
-  }
-  if (Pitch < -50) {
-    EEP.PitchTrim = EEP.PitchTrim - INCREMENT;
-    CoDrone.Buzz(4000, 4);
-    CoDrone.Buzz(2000, 4);
-    RefreshFlag = 1;
-  }
-  if (Roll > 50) {
-    EEP.RollTrim = EEP.RollTrim + INCREMENT;
-    CoDrone.Buzz(2000, 4);
-    CoDrone.Buzz(4000, 4);
-    RefreshFlag = 1;
-  }
-  if (Roll < -50) {
-    EEP.RollTrim = EEP.RollTrim - INCREMENT;
-    CoDrone.Buzz(4000, 4);
-    CoDrone.Buzz(2000, 4);
-    RefreshFlag = 1;
-  }
-
-  if (EEP.YawTrim >= 600) {
-    EEP.YawTrim = 600;
-  }
-  else if (EEP.YawTrim <= -600) {
-    EEP.YawTrim = -600;
-  }
-  if (EEP.RollTrim >= 600) {
-    EEP.RollTrim = 600;
-  }
-  else if (EEP.RollTrim <= -600) {
-    EEP.RollTrim = -600;
-  }
-  if (EEP.PitchTrim >= 600) {
-    EEP.PitchTrim = 600;
-  }
-  else if (EEP.PitchTrim <= -600) {
-    EEP.PitchTrim = -600;
-  }
-  if (EEP.ThrottleTrim >= 600) {
-    EEP.ThrottleTrim = 600;
-  }
-  else if (EEP.ThrottleTrim <= -600) {
-    EEP.ThrottleTrim = -600;
-  }
-  if (RefreshFlag == 1) {
-    CoDrone.Set_TrimAll(EEP.RollTrim, EEP.PitchTrim, EEP.YawTrim, EEP.ThrottleTrim, 0);
-    delay(150);
-    RefreshFlag = 0;
-  }
-}
-
-
-void gain_tune()
-{
-  double inc;
-  inc = (double)Throttle / 100;
-  
-  if (Pitch > 50) {
-    EEP.k_p += inc;
-  }
-  if (Pitch < -50) {
-    EEP.k_p2 += inc;
-  }
-}
-
-void joystick_control() {
-  YAW       = Yaw;      // Set the A3 analog pin to control the Yaw
-  THROTTLE  = Throttle; // Set the A4 analog pin to control the Throttle
-  ROLL      = Roll;     // Set the A5 analog pin to control the Roll
-  PITCH     = Pitch;    // Set the A6 analog pin to control the Pitch
-  CoDrone.Control(SEND_INTERVAL); // Send the new flight commands at the SEND_INTERVAL (50ms)
-}
-
-
-
-void trans_bt_state() {
-
-  for (int i = 0; i < 8; i++) {
-    bt[i] = digitalRead(11 + i);
-  }
-  bt_state = 0;
-  for (int i = 0; i < 8; i++) {
-    bt_state |= (bt[i] << (7 - i));
-  }
-  switch (bt_state) {
-    case 0b00000000:
-      TrimState = HOVER; break;
-    case 0b10000000:
-      TrimState = STOP; break;
-    case 0b01000000:
-      TrimState = EEP_WRITE; break;
-    case 0b00000010:
-      TrimState = EEP_READ; break;
-    case 0b00000001:
-      TrimState = GAIN_TUNE; break;
-    case 0b10000001:
-      TrimState = TRIM; break;
-    default:
-      TrimState = CONTROL; break;
-  }
-}
-
-
 
 
