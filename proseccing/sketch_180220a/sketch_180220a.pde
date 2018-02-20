@@ -22,6 +22,7 @@ byte receiveLength;
 
 int Stick_Roll;
 int Stick_Pitch;
+
 enum tType
 {
   tType_Attitude, 
@@ -31,13 +32,11 @@ enum tType
     tType_ImuRawAndAngl, 
     tType_Pressure, 
     tType_Temperature, 
-    tType_AnalogStick
+    tType_AnalogStick;
 };
 
-//int x;
 void serialEvent(Serial port) {
   if ( port.available() >= 0 ) {
-     //x = port.read();
     int input = port.read();
     cmdBuff[cmdIndex++] = (byte)input;
 
@@ -48,7 +47,6 @@ void serialEvent(Serial port) {
       if (cmdIndex == 1) {
         if (cmdBuff[0] == START1) {
           checkHeader = 1;
-          //println("checkHeader=1");
         } else {
           checkHeader = 0;
           cmdIndex = 0;
@@ -58,7 +56,6 @@ void serialEvent(Serial port) {
         if (checkHeader == 1) {
           if (cmdBuff[1] == START2) {
             checkHeader = 2;
-            //println("checkHeader=2");
           } else {
             checkHeader = 0;
             cmdIndex = 0;
@@ -68,33 +65,24 @@ void serialEvent(Serial port) {
         if (cmdIndex == 3) {
           receiveDtype =  cmdBuff[2];
           dataBuff[cmdIndex - 3] = cmdBuff[cmdIndex - 1];
-          //print("receiveDtype: ");
-          //println(receiveDtype);
         } else if (cmdIndex == 4) {
           receiveLength = cmdBuff[3];
           dataBuff[cmdIndex - 3] = cmdBuff[cmdIndex - 1];
-          //print("receiveLength: ");
-          //println(receiveLength);
-
         } else if (cmdIndex > 4) {
-          if (receiveLength + 3 > cmdIndex){
+          if (receiveLength + 3 > cmdIndex) {
             dataBuff[cmdIndex - 3] = cmdBuff[cmdIndex - 1];
           }
           if (receiveLength + 4 <= cmdIndex) {
-            //println("receiveComplete");
-            if (receiveDtype == 7) {
-              //println("receiveDtype = 7");
-              //print(hex(dataBuff[0],2));
-              //print(hex(dataBuff[1],2));
-              //print(hex(dataBuff[2],2));
-              //print(hex(dataBuff[3],2));
-              //print(hex(dataBuff[4],2));
-              //print(hex(dataBuff[5],2));
+            if (receiveDtype == tType.tType_Attitude.ordinal()) {
+            } else if (receiveDtype == tType.tType_GyroBias.ordinal()) {
+            } else if (receiveDtype == tType.tType_TrimAll.ordinal()) {
+            } else if (receiveDtype == tType.tType_IrMessage.ordinal()) {
+            } else if (receiveDtype == tType.tType_ImuRawAndAngl.ordinal()) {
+            } else if (receiveDtype == tType.tType_Pressure.ordinal()) {
+            } else if (receiveDtype == tType.tType_Temperature.ordinal()) {
+            } else if (receiveDtype == tType.tType_AnalogStick.ordinal()) {
               Stick_Roll = (dataBuff[3]<<8) | (dataBuff[2] & 0xFF);
               Stick_Pitch = (dataBuff[5]<<8) | (dataBuff[4] & 0xFF);
-              print(Stick_Roll);
-              print(" : ");
-              println(Stick_Pitch);
             }
             checkHeader = 0;
             cmdIndex = 0;
