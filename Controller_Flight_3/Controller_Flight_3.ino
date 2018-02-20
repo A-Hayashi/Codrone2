@@ -106,13 +106,14 @@ void send_pcdata()
 void Send_Attitude()
 {
   byte data[12];
-  byte len = 6;
-  data[0] = LowB(CoDrone.attitudeRoll);
-  data[1] = HighB(CoDrone.attitudeRoll);
-  data[2] = LowB(CoDrone.attitudePitch);
-  data[3] = HighB(CoDrone.attitudePitch);
-  data[4] = LowB(CoDrone.attitudeYaw);
-  data[5] = HighB(CoDrone.attitudeYaw);
+  byte len = 7;
+  data[0] = LowB(CoDrone.droneAttitude[0]);   //Roll
+  data[1] = HighB(CoDrone.droneAttitude[0]);
+  data[2] = LowB(CoDrone.droneAttitude[1]);   //Pitch
+  data[3] = HighB(CoDrone.droneAttitude[1]);
+  data[4] = LowB(CoDrone.droneAttitude[2]);   //Yaw
+  data[5] = HighB(CoDrone.droneAttitude[2]);
+  data[6] = CoDrone.Alive.Attitude;
   Send_Processing(tType_Attitude, data, len);
 }
 
@@ -136,13 +137,14 @@ void Send_AnalogStick()
 void Send_GyroBias()
 {
   byte data[12];
-  byte len = 6;
+  byte len = 7;
   data[0] = CoDrone.droneGyroBias[0]; //Roll
   data[1] = CoDrone.droneGyroBias[1];
   data[2] = CoDrone.droneGyroBias[2]; //Pitch
   data[3] = CoDrone.droneGyroBias[3];
   data[4] = CoDrone.droneGyroBias[4]; //Yaw
   data[5] = CoDrone.droneGyroBias[5];
+  data[6] = CoDrone.Alive.GyroBias;
   Send_Processing(tType_GyroBias, data, len);
 }
 
@@ -150,7 +152,7 @@ void Send_GyroBias()
 void Send_TrimAll()
 {
   byte data[12];
-  byte len = 10;
+  byte len = 11;
   data[0] = CoDrone.droneTrimAll[0];  //Roll
   data[1] = CoDrone.droneTrimAll[1];
   data[2] = CoDrone.droneTrimAll[2];  //Pitch
@@ -161,6 +163,7 @@ void Send_TrimAll()
   data[7] = CoDrone.droneTrimAll[7];
   data[8] = CoDrone.droneTrimAll[8];  //Wheel
   data[9] = CoDrone.droneTrimAll[9];
+  data[10] = CoDrone.Alive.TrimAll;
   Send_Processing(tType_TrimAll, data, len);
 }
 
@@ -168,20 +171,21 @@ void Send_TrimAll()
 void Send_IrMessage()
 {
   byte data[12];
-  byte len = 5;
+  byte len = 6;
   data[0] = CoDrone.droneIrMassage[0];  //Direction
   data[1] = CoDrone.droneIrMassage[1];
   data[2] = CoDrone.droneIrMassage[2];
   data[3] = CoDrone.droneIrMassage[3];
   data[4] = CoDrone.droneIrMassage[4];
+  data[5] = CoDrone.Alive.IrMessage;
   Send_Processing(tType_IrMessage, data, len);
 }
 
 
 void Send_ImuRawAndAngl()
 {
-  byte data[18];
-  byte len = 18;
+  byte data[19];
+  byte len = 19;
   data[0] = LowB(CoDrone.droneImuRawAndAngle[0]);   //AccX
   data[1] = HighB(CoDrone.droneImuRawAndAngle[0]);
   data[2] = LowB(CoDrone.droneImuRawAndAngle[1]);   //AccY
@@ -198,31 +202,34 @@ void Send_ImuRawAndAngl()
   data[13] = HighB(CoDrone.droneImuRawAndAngle[6]);
   data[14] = LowB(CoDrone.droneImuRawAndAngle[7]);  //AnglePitch
   data[15] = HighB(CoDrone.droneImuRawAndAngle[7]);
-  data[16] = LowB(CoDrone.droneImuRawAndAngle[8]);  //AngleRoll
+  data[16] = LowB(CoDrone.droneImuRawAndAngle[8]);  //AngleYaw
   data[17] = HighB(CoDrone.droneImuRawAndAngle[8]);
+  data[18] = CoDrone.Alive.ImuRawAndAngle;
 
   Send_Processing(tType_ImuRawAndAngl, data, len);
 }
 
 void Send_Pressure()
 {
-  byte data[16];
-  byte len = 16;
+  byte data[17];
+  byte len = 17;
 
-  for (int i = 0; i < len; i++) {
+  for (int i = 0; i < len-1; i++) {
     data[i] = CoDrone.dronePressure[i];
   }
+  data[16] = CoDrone.Alive.Pressure;
   Send_Processing(tType_Pressure, data, len);
 }
 
 void Send_Temperature()
 {
-  byte data[8];
-  byte len = 8;
+  byte data[9];
+  byte len = 9;
 
-  for (int i = 0; i < len; i++) {
-    data[0] = CoDrone.droneTemperature[i];
+  for (int i = 0; i < len-1; i++) {
+    data[i] = CoDrone.droneTemperature[i];
   }
+  data[8] = CoDrone.Alive.Temperature;
   Send_Processing(tType_Temperature, data, len);
 }
 
@@ -252,7 +259,7 @@ void state_machine()
 
   switch (state) {
     case cmdType_Control:
-      state_Control(state_change);
+//      state_Control(state_change);
       break;
     case cmdType_EEP_Write:
       state_EEP_Write(state_change);
@@ -276,7 +283,7 @@ void state_machine()
       state_GainTune(state_change);
       break;
     default:
-      state_Control(state_change);
+//      state_Control(state_change);
       break;
   }
   old_state = state;

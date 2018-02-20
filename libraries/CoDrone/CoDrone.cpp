@@ -1471,11 +1471,13 @@ void CoDroneClass::Receive()
               	if (receiveDtype == dType_LinkState)		
                 {
                 	receiveLinkState = dataBuff[2];
-                	receiveLikMode = dataBuff[3];                	
+                	receiveLikMode = dataBuff[3];
+                	Alive.LinkState++;
                 }                                	
                 else if (receiveDtype == dType_LinkEvent)		
                 {
                 	receiveEventState = dataBuff[2];
+                	Alive.LinkEvent++;
                 }
                           
                 /***********************************************/     
@@ -1487,7 +1489,7 @@ void CoDroneClass::Receive()
 	                droneIrMassage[2] = dataBuff[4];
 	                droneIrMassage[3] = dataBuff[5];
 	                droneIrMassage[4] = dataBuff[6];
-
+                	Alive.IrMessage++;
               	}                          
                          
                 else if (receiveDtype == dType_State)		//dron state
@@ -1499,16 +1501,18 @@ void CoDroneClass::Receive()
 	                droneState[4] = dataBuff[6];
 	                droneState[5] = dataBuff[7];	
 	                droneState[6] = dataBuff[8];	  	              
-              	}
+              		Alive.State++;
+                }
                 else if (receiveDtype == dType_Attitude)		//dron Attitude
                 { 
-                	droneAttitude[0] = (dataBuff[5] << 8) | dataBuff[4];
-	                droneAttitude[1] = (dataBuff[3] << 8) | dataBuff[2];
+                	droneAttitude[0] = (dataBuff[3] << 8) | dataBuff[2];
+	                droneAttitude[1] = (dataBuff[5] << 8) | dataBuff[4];
 	                droneAttitude[2] = (dataBuff[7] << 8) | dataBuff[6];
 
 	                gyroAngle[0] = droneAttitude[0];
 	                gyroAngle[1] = droneAttitude[1];
 	                gyroAngle[2] = droneAttitude[2];
+                	Alive.Attitude++;
                 }      
                 
                 else if (receiveDtype == dType_GyroBias)		//dron GyroBias
@@ -1518,7 +1522,8 @@ void CoDroneClass::Receive()
 	                droneGyroBias[2] = dataBuff[4];
 	                droneGyroBias[3] = dataBuff[5];
 	                droneGyroBias[4] = dataBuff[6];
-	                droneGyroBias[5] = dataBuff[7];	  	   				                
+	                droneGyroBias[5] = dataBuff[7];
+                	Alive.GyroBias++;
                 }                 
                                 
                 else if (receiveDtype == dType_TrimAll)		//dron TrimAll
@@ -1532,7 +1537,8 @@ void CoDroneClass::Receive()
 	                droneTrimAll[6] = dataBuff[8];
 	                droneTrimAll[7] = dataBuff[9];
 	                droneTrimAll[8] = dataBuff[10];
-	                droneTrimAll[9] = dataBuff[11];	                    				                
+	                droneTrimAll[9] = dataBuff[11];	      
+                	Alive.TrimAll++;
                 }           
                                 
                 else if (receiveDtype == dType_TrimFlight)		//dron TrimFlight
@@ -1544,13 +1550,15 @@ void CoDroneClass::Receive()
 	                droneTrimFlight[4] = dataBuff[6];
 	                droneTrimFlight[5] = dataBuff[7];	                
 	                droneTrimFlight[6] = dataBuff[8];
-	                droneTrimFlight[7] = dataBuff[9];            				                
+	                droneTrimFlight[7] = dataBuff[9];
+                	Alive.TrimFlight++;
                 }                    
                 
                 else if (receiveDtype == dType_TrimDrive)		//dron TrimDrive
                 { 
                 	droneTrimDrive[0] = dataBuff[2];
-	                droneTrimDrive[1] = dataBuff[3];	               				                
+	                droneTrimDrive[1] = dataBuff[3];
+                	Alive.TrimDrive++;
                 }    
                 
                 else if (receiveDtype == dType_ImuRawAndAngle)//dron ImuRawAndAngle
@@ -1574,6 +1582,7 @@ void CoDroneClass::Receive()
 	                gyroAngle[0] = droneImuRawAndAngle[6];
 	                gyroAngle[1] = droneImuRawAndAngle[7];
 	                gyroAngle[2] = droneImuRawAndAngle[8];
+                	Alive.ImuRawAndAngle++;
                 }
                 
                 else if (receiveDtype == dType_Pressure)//dron Pressure
@@ -1594,6 +1603,7 @@ void CoDroneClass::Receive()
                 	dronePressure[13] = dataBuff[15];
                 	dronePressure[14] = dataBuff[16];
                 	dronePressure[15] = dataBuff[17];
+                	Alive.Pressure++;
               	}
                 
                 else if (receiveDtype ==  dType_ImageFlow)//dron ImageFlow
@@ -1608,11 +1618,13 @@ void CoDroneClass::Receive()
                 	droneImageFlow[7] = dataBuff[9];
                 	imageFlowX = (droneImageFlow[5] << 24) | (droneImageFlow[4] << 16) | (droneImageFlow[3] << 8) | (droneImageFlow[2]);
                 	imageFlowY = (droneImageFlow[9] << 24) | (droneImageFlow[8] << 16) | (droneImageFlow[7] << 8) | (droneImageFlow[6]);
+                	Alive.ImageFlow++;
                 }
                      
                 else if (receiveDtype ==  dType_Button)//dron Button
                 {
                 	droneButton[0] = dataBuff[2];
+                	Alive.Button++;
                 }
                        
                 else if (receiveDtype ==  dType_Batery)//dron Batery
@@ -1632,7 +1644,8 @@ void CoDroneClass::Receive()
                 	droneBattery[12] = dataBuff[14];
                 	droneBattery[13] = dataBuff[15];
                 	droneBattery[14] = dataBuff[16];
-                	droneBattery[15] = dataBuff[17];                	      
+                	droneBattery[15] = dataBuff[17]; 
+                	Alive.Batery++;
                 }    
                                           
                 else if (receiveDtype ==  dType_Motor)//dron Motor
@@ -1640,7 +1653,8 @@ void CoDroneClass::Receive()
                 	droneMotor[0] = dataBuff[2];
                 	droneMotor[1] = dataBuff[3];
                   	droneMotor[2] = dataBuff[4];
-                	droneMotor[3] = dataBuff[5];                	
+                	droneMotor[3] = dataBuff[5];    
+                	Alive.Motor++;
                 }            
                      
                 else if (receiveDtype ==  dType_Temperature)//dron Temperature
@@ -1653,6 +1667,7 @@ void CoDroneClass::Receive()
                 	droneTemperature[5] = dataBuff[7];
                 	droneTemperature[6] = dataBuff[8];
                 	droneTemperature[7] = dataBuff[9];
+                	Alive.Temperature++;
                 }    
                 
                 /***********************************************/                  
@@ -1668,6 +1683,7 @@ void CoDroneClass::Receive()
 								  	DEBUG_SERIAL.println(rssi);									  
 								  }
 							    #endif  
+                	Alive.LinkRssi++;
                 }
                 /***********************************************/                                 
                 else if (receiveDtype == dType_LinkDiscoveredDevice)//Discovered Device
@@ -1734,6 +1750,7 @@ void CoDroneClass::Receive()
 							      
                
                 }
+              	Alive.LinkDiscoveredDevice++;
               }              
               /***********************************************/      
 
@@ -2190,8 +2207,8 @@ void CoDroneClass::ReceiveEventCheck()
 		else if (receiveDtype == dType_Attitude)
 	  {  			
 	  		  	
-				attitudeRoll	= 		droneAttitude[1];
-				attitudePitch	=		droneAttitude[0];
+				attitudeRoll	= 		droneAttitude[0];
+				attitudePitch	=		droneAttitude[1];
 				attitudeYaw		=		droneAttitude[2];
 				
 				receiveAttitudeSuccess = 1;

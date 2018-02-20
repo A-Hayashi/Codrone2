@@ -1,24 +1,25 @@
-import  processing.serial.*; //<>//
+import  processing.serial.*; //<>// //<>//
 
 ReceiveData r_data;
 int[]   data;
 
 void setup() {  
+  Serial  serial;
   size(400, 250);
   data = new int [width];
-  Serial  serial = new Serial( this, Serial.list()[0], 9600 );
-  r_data = new ReceiveData(serial);
+  r_data = new ReceiveData();
+  serial = new Serial( this, Serial.list()[0], 9600 );
 }
 
 void serialEvent(Serial port) {
-  println("eee");
-  r_data.Receive();
+
+  r_data.Receive(port);
 }
 
 void draw() {
   background(0);
   fill(0xaa);
-  ellipse(width/2, height/2, r_data.AnalogStick.Roll*2, r_data.AnalogStick.Pitch*2);
+  ellipse(width/2, height/2, r_data.Attitude.Roll, r_data.Attitude.Pitch);
 }
 
 
@@ -36,7 +37,7 @@ enum tType
 
 
 public class ReceiveData {
-  private Serial port;
+
   private static final byte START1 = 0x0A;
   private static final byte START2 = 0x55;
   private static final byte MAX_PACKET_LENGTH = 100;
@@ -56,15 +57,12 @@ public class ReceiveData {
   Temperature_t Temperature = new Temperature_t();
   AnalogStick_t AnalogStick = new AnalogStick_t(); 
 
-  public ReceiveData(Serial p) {
-    port = p;
-  }
 
   private int UniteByte(byte upper, byte lower) {
     return ((upper<<8) | (lower & 0xFF) );
   }
 
-  public void Receive() {
+  public void Receive(Serial port) {
     if ( port.available() >= 0 ) {
       int input = port.read();
       cmdBuff[cmdIndex++] = (byte)input;
@@ -98,55 +96,114 @@ public class ReceiveData {
             receiveLength = cmdBuff[3];
             dataBuff[cmdIndex - 3] = cmdBuff[cmdIndex - 1];
           } else if (cmdIndex > 4) {
-            if (receiveLength + 3 > cmdIndex) {
+            if (receiveLength + 4 >= cmdIndex) {
               dataBuff[cmdIndex - 3] = cmdBuff[cmdIndex - 1];
             }
             if (receiveLength + 4 <= cmdIndex) {
               if (receiveDtype == tType.tType_Attitude.ordinal()) {
-                Attitude.Roll = UniteByte(dataBuff[1], dataBuff[0]);
-                Attitude.Pitch = UniteByte(dataBuff[3], dataBuff[2]);
-                Attitude.Yaw = UniteByte(dataBuff[5], dataBuff[4]);
+                Attitude.Roll = UniteByte(dataBuff[3], dataBuff[2]);
+                Attitude.Pitch = UniteByte(dataBuff[5], dataBuff[4]);
+                Attitude.Yaw = UniteByte(dataBuff[7], dataBuff[6]);
+                Attitude.AliveCnt = dataBuff[8];
+                //print(Attitude.Roll); print(" ");
+                //print(Attitude.Pitch); print(" ");
+                //print(Attitude.Yaw); print(" ");
+                //print(Attitude.AliveCnt); print(" ");
+                //println();
               } else if (receiveDtype == tType.tType_GyroBias.ordinal()) {
-                GyroBias.Roll = UniteByte(dataBuff[1], dataBuff[0]);
-                GyroBias.Pitch = UniteByte(dataBuff[3], dataBuff[2]);
-                GyroBias.Yaw = UniteByte(dataBuff[5], dataBuff[4]);
+                /* not available */
+                GyroBias.Roll = UniteByte(dataBuff[3], dataBuff[2]);
+                GyroBias.Pitch = UniteByte(dataBuff[5], dataBuff[4]);
+                GyroBias.Yaw = UniteByte(dataBuff[7], dataBuff[6]);
+                GyroBias.AliveCnt = dataBuff[8];
+                //print(GyroBias.Roll); print(" ");
+                //print(GyroBias.Pitch); print(" ");
+                //print(GyroBias.Yaw); print(" ");
+                //print(GyroBias.AliveCnt); print(" ");
+                //println();
               } else if (receiveDtype == tType.tType_TrimAll.ordinal()) {
-                TrimAll.Roll = UniteByte(dataBuff[1], dataBuff[0]);
-                TrimAll.Pitch = UniteByte(dataBuff[3], dataBuff[2]);
-                TrimAll.Yaw = UniteByte(dataBuff[5], dataBuff[4]);
-                TrimAll.Throttle = UniteByte(dataBuff[7], dataBuff[6]);
-                TrimAll.Wheel = UniteByte(dataBuff[9], dataBuff[8]);
+                TrimAll.Roll = UniteByte(dataBuff[3], dataBuff[2]);
+                TrimAll.Pitch = UniteByte(dataBuff[5], dataBuff[4]);
+                TrimAll.Yaw = UniteByte(dataBuff[7], dataBuff[6]);
+                TrimAll.Throttle = UniteByte(dataBuff[9], dataBuff[8]);
+                TrimAll.Wheel = UniteByte(dataBuff[11], dataBuff[10]);
+                TrimAll.AliveCnt = dataBuff[12];
+                //print(TrimAll.Roll); print(" ");
+                //print(TrimAll.Pitch); print(" ");
+                //print(TrimAll.Throttle); print(" ");
+                //print(TrimAll.Wheel); print(" ");
+                //print(TrimAll.AliveCnt); print(" ");
+                //println();
               } else if (receiveDtype == tType.tType_IrMessage.ordinal()) {
-                IrMessage.Direction = dataBuff[0];
-                IrMessage.IrMessage[0] = dataBuff[1];
-                IrMessage.IrMessage[1] = dataBuff[2];
-                IrMessage.IrMessage[2] = dataBuff[3];
-                IrMessage.IrMessage[3] = dataBuff[4];
+                /* not available */
+                IrMessage.Direction = dataBuff[2];
+                IrMessage.IrMessage[0] = dataBuff[3];
+                IrMessage.IrMessage[1] = dataBuff[4];
+                IrMessage.IrMessage[2] = dataBuff[5];
+                IrMessage.IrMessage[3] = dataBuff[6];
+                IrMessage.AliveCnt     = dataBuff[7];
+                //print(IrMessage.Direction);    print(" ");
+                //print(IrMessage.IrMessage[0]); print(" ");
+                //print(IrMessage.IrMessage[1]); print(" ");
+                //print(IrMessage.IrMessage[2]); print(" ");
+                //print(IrMessage.IrMessage[3]); print(" ");
+                //print(IrMessage.AliveCnt);     print(" ");
+                //println();
               } else if (receiveDtype == tType.tType_ImuRawAndAngl.ordinal()) {
-                ImuRawAndAngl.AccX = UniteByte(dataBuff[1], dataBuff[0]);
-                ImuRawAndAngl.AccY = UniteByte(dataBuff[3], dataBuff[2]);
-                ImuRawAndAngl.AccZ = UniteByte(dataBuff[5], dataBuff[4]);
-                ImuRawAndAngl.GyroRoll = UniteByte(dataBuff[7], dataBuff[6]);
-                ImuRawAndAngl.GyroPitch = UniteByte(dataBuff[9], dataBuff[8]);
-                ImuRawAndAngl.GyroRoll = UniteByte(dataBuff[11], dataBuff[10]);
-                ImuRawAndAngl.AngleRoll = UniteByte(dataBuff[13], dataBuff[12]);
-                ImuRawAndAngl.AnglePitch = UniteByte(dataBuff[15], dataBuff[14]);
-                ImuRawAndAngl.AngleRoll = UniteByte(dataBuff[17], dataBuff[16]);
+                /* not available */
+                ImuRawAndAngl.AccX = UniteByte(dataBuff[3], dataBuff[2]);
+                ImuRawAndAngl.AccY = UniteByte(dataBuff[5], dataBuff[4]);
+                ImuRawAndAngl.AccZ = UniteByte(dataBuff[7], dataBuff[6]);
+                ImuRawAndAngl.GyroRoll = UniteByte(dataBuff[9], dataBuff[8]);
+                ImuRawAndAngl.GyroPitch = UniteByte(dataBuff[11], dataBuff[10]);
+                ImuRawAndAngl.GyroRoll = UniteByte(dataBuff[13], dataBuff[12]);
+                ImuRawAndAngl.AngleRoll = UniteByte(dataBuff[15], dataBuff[14]);
+                ImuRawAndAngl.AnglePitch = UniteByte(dataBuff[17], dataBuff[16]);
+                ImuRawAndAngl.AngleRoll = UniteByte(dataBuff[19], dataBuff[18]);
+                ImuRawAndAngl.AliveCnt = dataBuff[20];
+                //print(ImuRawAndAngl.AccX); print(" ");
+                //print(ImuRawAndAngl.AccY); print(" ");
+                //print(ImuRawAndAngl.AccZ); print(" ");
+                //print(ImuRawAndAngl.GyroRoll); print(" ");
+                //print(ImuRawAndAngl.GyroPitch); print(" ");
+                //print(ImuRawAndAngl.GyroRoll); print(" ");
+                //print(ImuRawAndAngl.AngleRoll); print(" ");
+                //print(ImuRawAndAngl.AnglePitch); print(" ");
+                //print(ImuRawAndAngl.AngleRoll); print(" ");
+                //print(ImuRawAndAngl.AliveCnt); print(" ");
+                //println();
               } else if (receiveDtype == tType.tType_Pressure.ordinal()) {
+                /* not available */
                 for (int i=0; i<16; i++) {
-                  Pressure.Pressure[i] = dataBuff[i];
+                  Pressure.Pressure[i] = dataBuff[i+2];
                 }
+                Pressure.AliveCnt = dataBuff[18];
+                //for (int i=0; i<16; i++) {
+                //  print(Pressure.Pressure[i]); print(" ");
+                //}
+                //print(Pressure.AliveCnt);
+                //println();
               } else if (receiveDtype == tType.tType_Temperature.ordinal()) {
+                /* not available */
                 for (int i=0; i<8; i++) {
-                  Temperature.Temperature[i] = dataBuff[i];
+                  Temperature.Temperature[i] = dataBuff[i+2];
                 }
+                Temperature.AliveCnt = dataBuff[10];
+                //for (int i=0; i<8; i++) {
+                //  print(Temperature.Temperature[i]); print(" ");
+                //}
+                //print(Temperature.AliveCnt); 
+                //println();
               } else if (receiveDtype == tType.tType_AnalogStick.ordinal()) {
-                println(dataBuff[3]);
-                println(dataBuff[2]);
-                AnalogStick.Roll = UniteByte(dataBuff[1], dataBuff[0]);
-                AnalogStick.Pitch = UniteByte(dataBuff[3], dataBuff[2]);
-                AnalogStick.Yaw = UniteByte(dataBuff[5], dataBuff[4]);
-                AnalogStick.Throttle = UniteByte(dataBuff[7], dataBuff[6]);
+                AnalogStick.Roll = UniteByte(dataBuff[3], dataBuff[2]);
+                AnalogStick.Pitch = UniteByte(dataBuff[5], dataBuff[4]);
+                AnalogStick.Yaw = UniteByte(dataBuff[7], dataBuff[6]);
+                AnalogStick.Throttle = UniteByte(dataBuff[9], dataBuff[8]);
+                //print(AnalogStick.Roll); print(" ");
+                //print(AnalogStick.Pitch); print(" ");
+                //print(AnalogStick.Yaw); print(" ");
+                //print(AnalogStick.Throttle); print(" ");
+                //println();
               }
               checkHeader = 0;
               cmdIndex = 0;
@@ -162,54 +219,62 @@ public class ReceiveData {
 }
 
 
-class Attitude_t {
-  int Roll;
-  int Pitch;
-  int Yaw;
-}
 
-class GyroBias_t {
-  int Roll;
-  int Pitch;
-  int Yaw;
-}
+  class Attitude_t {
+    int Roll;
+    int Pitch;
+    int Yaw;
+    byte AliveCnt;
+  }
 
-class TrimAll_t {
-  int Roll;
-  int Pitch;
-  int Yaw;
-  int Throttle;
-  int Wheel;
-}
+  class GyroBias_t {
+    int Roll;
+    int Pitch;
+    int Yaw;
+    byte AliveCnt;
+  }
 
-class IrMessage_t {
-  int Direction;
-  int IrMessage[] = new int[4];
-}
+  class TrimAll_t {
+    int Roll;
+    int Pitch;
+    int Yaw;
+    int Throttle;
+    int Wheel;
+    byte AliveCnt;
+  }
 
-class ImuRawAndAngl_t {
-  int AccX;
-  int AccY;
-  int AccZ;
-  int GyroRoll;
-  int GyroPitch;
-  int GyroYaw;
-  int AngleRoll;
-  int AnglePitch;
-  int AngleYaw;
-}
+  class IrMessage_t {
+    int Direction;
+    int IrMessage[] = new int[4];
+    byte AliveCnt;
+  }
 
-class Pressure_t {
-  int Pressure[] = new int[16];
-}
+  class ImuRawAndAngl_t {
+    int AccX;
+    int AccY;
+    int AccZ;
+    int GyroRoll;
+    int GyroPitch;
+    int GyroYaw;
+    int AngleRoll;
+    int AnglePitch;
+    int AngleYaw;
+    byte AliveCnt;
+  }
 
-class Temperature_t {
-  int Temperature[] = new int[8];
-}
+  class Pressure_t {
+    int Pressure[] = new int[16];
+    byte AliveCnt;
+  }
 
-class AnalogStick_t {
-  int Roll;
-  int Pitch;
-  int Yaw;
-  int Throttle;
-}
+  class Temperature_t {
+    int Temperature[] = new int[8];
+    byte AliveCnt;
+  }
+
+  class AnalogStick_t {
+    int Roll;
+    int Pitch;
+    int Yaw;
+    int Throttle;
+  }

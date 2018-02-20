@@ -25,6 +25,29 @@ typedef uint32_t u32;
 //typedef uint16_t u16;
 typedef uint8_t u8;
 
+
+
+typedef struct _ALIVESTRUCT {
+	byte LinkState;
+	byte LinkEvent;
+	byte IrMessage;
+	byte State;
+	byte Attitude;
+	byte GyroBias;
+	byte TrimAll;
+	byte TrimFlight;
+	byte TrimDrive;
+	byte ImuRawAndAngle;
+	byte Pressure;
+	byte ImageFlow;
+	byte Button;
+	byte Batery;
+	byte Motor;
+	byte Temperature;
+	byte LinkRssi;
+	byte LinkDiscoveredDevice;
+} ALIVESTRUCT;
+
 /***********************************************************************/
 ////////////////////////Serial Select////////////////////////////////////
 /***********************************************************************/
@@ -826,7 +849,7 @@ public:
 
 	s32 imageFlowX;
 	s32 imageFlowY;
-
+	ALIVESTRUCT Alive;
 /////////////////////////////////////////////////////////////////////////
 
 		long PreviousMillis;
