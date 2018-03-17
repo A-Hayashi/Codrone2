@@ -33,7 +33,8 @@ enum tType
   tType_Pressure,
   tType_Temperature,
   tType_AnalogStick,
-  tType_ControlState
+  tType_ControlState,
+  tType_Range,
 };
 
 enum rType

@@ -33,6 +33,8 @@ void draw() {
   fill(0xaa);
   text("ControlState: "+strs[r_data.ControlState], width-10, 0+10);
   
+  text("Height:"+ r_data.Range.Bottom + " mm", width-10, 0+50);
+  
   translate(width/2, height*1/3);
   rotateZ(radians(r_data.Attitude.Roll));
   rotateX(radians(r_data.Attitude.Pitch));
@@ -61,6 +63,7 @@ enum tType
     tType_Temperature, 
     tType_AnalogStick, 
     tType_ControlState,
+    tType_Range,
 };
 
 String[] strs = { 
@@ -95,6 +98,7 @@ public class ReceiveData {
   Pressure_t Pressure = new Pressure_t();
   Temperature_t Temperature = new Temperature_t();
   AnalogStick_t AnalogStick = new AnalogStick_t(); 
+  Range_t Range = new Range_t();
   byte ControlState;
 
 
@@ -251,6 +255,14 @@ public class ReceiveData {
               } else if (receiveDtype == tType.tType_ControlState.ordinal()) {
                 ControlState = dataBuff[2];
                 //println(strs[ControlState]);
+              } else if (receiveDtype == tType.tType_Range.ordinal()) {
+                Range.Left   = UniteByte(dataBuff[3], dataBuff[2]);
+                Range.Front  = UniteByte(dataBuff[5], dataBuff[4]);
+                Range.Right  = UniteByte(dataBuff[7], dataBuff[6]);
+                Range.Rear   = UniteByte(dataBuff[9], dataBuff[8]);
+                Range.Top    = UniteByte(dataBuff[11], dataBuff[10]);
+                Range.Bottom = UniteByte(dataBuff[13], dataBuff[12]);
+                //println(strs[ControlState]);
               }
               checkHeader = 0;
               cmdIndex = 0;
@@ -306,6 +318,17 @@ class ImuRawAndAngl_t {
   int AngleRoll;
   int AnglePitch;
   int AngleYaw;
+  byte AliveCnt;
+}
+
+
+class Range_t {
+  int Left;
+  int Front;
+  int Right;
+  int Rear;
+  int Top;
+  int Bottom;
   byte AliveCnt;
 }
 

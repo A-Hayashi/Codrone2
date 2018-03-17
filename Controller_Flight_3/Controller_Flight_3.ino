@@ -67,13 +67,14 @@ void get_dronedata()
 {
   if (interval100.check()) {
     CoDrone.Request_DroneAttitude();
-    CoDrone.Request_ImuRawAndAngle();
-    CoDrone.Request_Pressure();
+    CoDrone.Request_Range();
+//    CoDrone.Request_ImuRawAndAngle();
+//    CoDrone.Request_Pressure();
   }
   if (interval2500.check()) {
-    CoDrone.Request_DroneGyroBias();
-    CoDrone.Request_TrimAll();
-    CoDrone.Request_Temperature();
+//    CoDrone.Request_DroneGyroBias();
+//    CoDrone.Request_TrimAll();
+//    CoDrone.Request_Temperature();
   }
   CoDrone.Receive();
 
@@ -89,15 +90,16 @@ void send_pcdata()
 {
   if (interval50.check()) {
     Send_Attitude();
-    Send_ImuRawAndAngl();
-    Send_Pressure();
-    Send_IrMessage();
+    Send_Range();
+//    Send_ImuRawAndAngl();
+//    Send_Pressure();
+//    Send_IrMessage();
     Send_AnalogStick();
   }
   if (interval1000.check()) {
-    Send_GyroBias();
-    Send_TrimAll();
-    Send_Temperature();
+//    Send_GyroBias();
+//    Send_TrimAll();
+//    Send_Temperature();
     Send_ControlState();
   }
 }
@@ -250,6 +252,18 @@ void Send_Temperature()
   Send_Processing(tType_Temperature, data, len);
 }
 
+void Send_Range()
+{
+  byte data[13];
+  byte len = 13;
+
+  for (int i = 0; i < len - 1; i+=2) {
+    data[i] = LowB(CoDrone.droneRange[i/2]);
+    data[i+1] = HighB(CoDrone.droneRange[i/2]);
+  }
+  data[12] = CoDrone.Alive.Range;
+  Send_Processing(tType_Range, data, len);
+}
 
 byte trans_state(byte state)
 {

@@ -44,6 +44,7 @@ typedef struct _ALIVESTRUCT {
 	byte Batery;
 	byte Motor;
 	byte Temperature;
+  byte Range;
 	byte LinkRssi;
 	byte LinkDiscoveredDevice;
 } ALIVESTRUCT;
@@ -316,6 +317,7 @@ enum DataType
 	dType_Batery, 								///< ¹èÅÍ¸®
 	dType_Motor, 									///< ¸ðÅÍ Á¦¾î ¹× ÇöÀç Á¦¾î °ª È®ÀÎ
 	dType_Temperature, 						///< ¿Âµµ
+  dType_Range,
 	
 	// ¸µÅ© º¸µå
 	dType_LinkState = 0xE0,				///< ¸µÅ© ¸ðµâÀÇ »óÅÂ
@@ -498,7 +500,7 @@ enum Request
 	Req_Address = 0x30, 				///< IEEE address
 	Req_State, 									///< µå·ÐÀÇ »óÅÂ(ºñÇà ¸ðµå, ¹æÀ§±âÁØ, ¹èÅÍ¸®·®)
 	Req_Attitude, 							///< µå·ÐÀÇ ÀÚ¼¼(Vector)
-	Req_GyroBias, 							///< ÀÚÀÌ·Î ¹ÙÀÌ¾î½º °ª(Vector)
+	Req_GyroBias, 							///Temperature< ÀÚÀÌ·Î ¹ÙÀÌ¾î½º °ª(Vector)
 	Req_TrimAll, 								///< ÀüÃ¼ Æ®¸²
 	Req_TrimFlight, 						///< ºñÇà Æ®¸²
 	Req_TrimDrive, 							///< ÁÖÇà Æ®¸²
@@ -511,6 +513,7 @@ enum Request
 	Req_Batery, 								///< ¹èÅÍ¸®
 	Req_Motor, 									///< ¸ðÅÍ Á¦¾î ¹× ÇöÀç Á¦¾î °ª È®ÀÎ
 	Req_Temperature, 						///< ¿Âµµ
+  Req_Range,
 	Req_EndOfType
 };
 
@@ -671,6 +674,7 @@ public:
 	void Request_Battery();	
 	void Request_Motor();	
 	void Request_Temperature();
+	void Request_Range();
 	
 /////////////////////////////////////////////////////////////////////////
 
@@ -843,6 +847,7 @@ public:
 	byte droneBattery[16];
 	byte droneMotor[4];
 	byte droneTemperature[8];
+  s16 droneRange[6];
 
 	s16 accel[3];
 	s16 gyroRaw[3];

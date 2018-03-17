@@ -1089,6 +1089,11 @@ void CoDroneClass::Request_Temperature()
 	sendCheckFlag = 1;
 	Send_Command(cType_Request, Req_Temperature);    
 }
+void CoDroneClass::Request_Range()
+{
+  sendCheckFlag = 1;
+  Send_Command(cType_Request, Req_Range);    
+}
 
 
 
@@ -1714,7 +1719,30 @@ void CoDroneClass::Receive()
                 	Alive.Temperature++;
                 	sendCheckFlag = 3;
                 }    
-                
+                else if (receiveDtype ==  dType_Range)
+                {
+                  droneRange[0] = (dataBuff[3]<<8) | (dataBuff[2]&0xff);  //left
+                  droneRange[1] = (dataBuff[5]<<8) | (dataBuff[4]&0xff);  //front
+                  droneRange[2] = (dataBuff[7]<<8) | (dataBuff[6]&0xff);  //right
+                  droneRange[3] = (dataBuff[9]<<8) | (dataBuff[8]&0xff);  //rear
+                  droneRange[4] = (dataBuff[11]<<8) | (dataBuff[10]&0xff);  //top
+                  droneRange[5] = (dataBuff[13]<<8) | (dataBuff[12]&0xff);  //bottom
+                	
+                  Alive.Range++;
+                  sendCheckFlag = 3;
+/*                	
+					mySerial.print(millis()); mySerial.print(" ");
+	            	mySerial.print(droneRange[0]); mySerial.print(" ");
+	            	mySerial.print(droneRange[1]); mySerial.print(" ");
+	            	mySerial.print(droneRange[2]); mySerial.print(" ");
+	            	mySerial.print(droneRange[3]); mySerial.print(" ");
+	            	mySerial.print(droneRange[4]); mySerial.print(" ");
+	            	mySerial.print(droneRange[5]); mySerial.print(" ");
+	            	
+	            	mySerial.print(Alive.Range); mySerial.print(" ");
+					mySerial.println();
+*/
+                }  
                 /***********************************************/                  
                 else if (receiveDtype == dType_LinkRssi)//Discovered Device
                 {
