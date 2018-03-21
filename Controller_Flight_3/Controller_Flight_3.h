@@ -4,24 +4,25 @@ typedef struct _EEPSTRUCT {
   int ThrottleTrim;
   int PitchTrim;
   int RollTrim;
-  double Yaw_Kp;
-  double Yaw_Ti;
-  double Yaw_Td;
-  double Throttle_Kp;
-  double Throttle_Ti;
-  double Throttle_Td;
-  double Pich_Kp;
-  double Pich_Ti;
-  double Pich_Td;
-  double Roll_Kp;
-  double Roll_Ti;
-  double Roll_Td;
+  float Yaw_Kp;
+  float Yaw_Ti;
+  float Yaw_Td;
+  float Throttle_Kp;
+  float Throttle_Ki;
+  float Throttle_Kd;
+  float Pich_Kp;
+  float Pich_Ki;
+  float Pich_Kd;
+  float Roll_Kp;
+  float Roll_Ki;
+  float Roll_Kd;
 } EEPSTRUCT;
 
 #define EEP_START_ADRESS 20
 #define RANGE_CHECK(x,min,max) ((x= (x<min  ? min : x<max ? x : max)))
 #define LowB(x) (x & 0xFF)
 #define HighB(x) (x >> 8)
+#define MAX_PACKET_LENGTH 100
 
 enum tType
 {
@@ -35,13 +36,7 @@ enum tType
   tType_AnalogStick,
   tType_ControlState,
   tType_Range,
-};
-
-enum rType
-{
-  rType_Command,
-  rType_TrimAll,
-  rType_Gains
+  tType_String,
 };
 
 enum cmdType
@@ -54,5 +49,13 @@ enum cmdType
   cmdType_Stop,
   cmdType_Hover,
   cmdType_GainTune,
+  cmdType_EndOfType,
+};
+
+
+enum PCcmdType
+{
+  PCcmdType_Control,
+  PCcmdType_GainTune
 };
 

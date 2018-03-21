@@ -16,6 +16,14 @@ EEPSTRUCT EEP;
 int Yaw, Throttle, Pitch, Roll;
 byte IR_Sensor;
 byte ControlState;
+byte CmdCtrlState;
+
+
+float dt, preTime;
+float P, I, D, preP;
+float current_h;
+float target_h;
+float output;
 
 void setup()
 {
@@ -27,6 +35,7 @@ void setup()
   for (int i = 0; i < 8; i++) {
     pinMode(11 + i, INPUT);
   }
+  preTime = micros();
 }
 
 void get_analog_stick(void)
@@ -61,6 +70,7 @@ void loop()
   send_pcdata();
 }
 
+
 Metro interval100 = Metro(100);
 Metro interval2500 = Metro(2500);
 void get_dronedata()
@@ -68,21 +78,18 @@ void get_dronedata()
   if (interval100.check()) {
     CoDrone.Request_DroneAttitude();
     CoDrone.Request_Range();
-//    CoDrone.Request_ImuRawAndAngle();
-//    CoDrone.Request_Pressure();
+    //    CoDrone.Request_ImuRawAndAngle();
+    //    CoDrone.Request_Pressure();
   }
   if (interval2500.check()) {
-//    CoDrone.Request_DroneGyroBias();
-//    CoDrone.Request_TrimAll();
-//    CoDrone.Request_Temperature();
+    //    CoDrone.Request_DroneGyroBias();
+    //    CoDrone.Request_TrimAll();
+    //    CoDrone.Request_Temperature();
   }
   CoDrone.Receive();
 
 }
 
-void receive_pcdata()
-{
-}
 
 Metro interval50 = Metro(50);
 Metro interval1000 = Metro(1000);
@@ -91,18 +98,30 @@ void send_pcdata()
   if (interval50.check()) {
     Send_Attitude();
     Send_Range();
-//    Send_ImuRawAndAngl();
-//    Send_Pressure();
-//    Send_IrMessage();
+    //    Send_ImuRawAndAngl();
+    //    Send_Pressure();
+    //    Send_IrMessage();
     Send_AnalogStick();
-  }
-  if (interval1000.check()) {
-//    Send_GyroBias();
-//    Send_TrimAll();
-//    Send_Temperature();
     Send_ControlState();
   }
+  if (interval1000.check()) {
+    char buff[10];
+
+    Send_String("Kp: ");
+    dtostrf(EEP.Throttle_Kp, 8, 6, buff);
+    Send_String(buff);
+    Send_String("\n");
+    Send_String("Kd: ");
+    dtostrf(EEP.Throttle_Ki, 8, 6, buff);
+    Send_String(buff);
+    Send_String("\n");
+    Send_String("Ki: ");
+    dtostrf(EEP.Throttle_Kd, 8, 6, buff);
+    Send_String(buff);
+    Send_String("\n");
+  }
 }
+
 void Send_ControlState()
 {
   byte data[12];
@@ -111,8 +130,6 @@ void Send_ControlState()
 
   Send_Processing(tType_ControlState, data, len);
 }
-
-
 
 void Send_Attitude()
 {
@@ -257,28 +274,42 @@ void Send_Range()
   byte data[13];
   byte len = 13;
 
-  for (int i = 0; i < len - 1; i+=2) {
-    data[i] = LowB(CoDrone.droneRange[i/2]);
-    data[i+1] = HighB(CoDrone.droneRange[i/2]);
+  for (int i = 0; i < len - 1; i += 2) {
+    data[i] = LowB(CoDrone.droneRange[i / 2]);
+    data[i + 1] = HighB(CoDrone.droneRange[i / 2]);
   }
   data[12] = CoDrone.Alive.Range;
   Send_Processing(tType_Range, data, len);
 }
 
+
+void Send_String(String s)
+{
+  byte data[100];
+  int i = 0;
+
+  while (s[i] != '\0') {
+    data[i] = s[i];
+    i++;
+  }
+  data[i] = '\0';
+
+  Send_Processing(tType_String, data, i + 1);
+}
+
+
 byte trans_state(byte state)
 {
   static byte next_state;
-  byte cmd;
-  if (mySerial.available()) cmd = mySerial.read();
 
-  if (((IR_Sensor&0x01)!=0x00) || cmd=='s') {
-    next_state = cmdType_Stop;
-  } else if (((IR_Sensor&0x80)!=0x00) || cmd=='c') {
+  if (((IR_Sensor & 0xff) == 0x00) || (CmdCtrlState == cmdType_Control)) {
     next_state = cmdType_Control;
-  } else if ((state==cmdType_Stop) && (((IR_Sensor&0x40)!=0x00)||(cmd=='t'))) {
+  } if (((IR_Sensor & 0x80) != 0x00) || (CmdCtrlState == cmdType_Stop)) {
+    next_state = cmdType_Stop;
+  } else if (((IR_Sensor & 0x01) != 0x00) || (CmdCtrlState == cmdType_Hover)) {
+    next_state = cmdType_Hover;
+  } else if (CmdCtrlState == cmdType_GainTune) {
     next_state = cmdType_TrimTune;
-  } else {
-
   }
   return next_state;
 }
@@ -375,7 +406,6 @@ void state_TrimSet(boolean state_change)
   }
 }
 
-
 void state_Stop(boolean state_change)
 {
   CoDrone.FlightEvent(Stop);
@@ -383,7 +413,32 @@ void state_Stop(boolean state_change)
 
 void state_Hover(boolean state_change)
 {
+  current_h = (float)CoDrone.droneRange[5];
+  if (state_change) {
+    //target_h = current_h;
+    target_h = 1000;
+  }
 
+  dt = (micros() - preTime) / 1000000;
+  preTime = micros();
+  P  = target_h - current_h;
+  I += P * dt;
+  D  = (P - preP) / dt;
+  preP = P;
+  output += EEP.Throttle_Kp * P + EEP.Throttle_Ki * I + EEP.Throttle_Kd * D;
+
+  if (output < -100) {
+    output = -100;
+  }
+  if (output > 100) {
+    output = 100;
+  }
+
+  YAW       = Yaw;      // Set the A3 analog pin to control the Yaw
+  THROTTLE  = (int)output;   // Set the A4 analog pin to control the Throttle
+  ROLL      = Roll;     // Set the A5 analog pin to control the Roll
+  PITCH     = Pitch;    // Set the A6 analog pin to control the Pitch
+  CoDrone.Control(SEND_INTERVAL); // Send the new flight commands at the SEND_INTERVAL (50ms)
 }
 
 void state_GainTune(boolean state_change)
@@ -440,4 +495,87 @@ void clearAndHome()
 }
 
 
+static byte cmdBuff[MAX_PACKET_LENGTH];
+static byte dataBuff[MAX_PACKET_LENGTH];
+static byte cmdIndex;
+static byte checkHeader;
+static byte receiveDtype;
+static byte receiveLength;
+
+void receive_pcdata(void) {
+  CmdCtrlState = cmdType_EndOfType;
+  if ( mySerial.available() >= 0 ) {
+    int input = mySerial.read();
+    cmdBuff[cmdIndex++] = (byte)input;
+
+    if (cmdIndex >= MAX_PACKET_LENGTH) {
+      checkHeader = 0;
+      cmdIndex = 0;
+    } else {
+      if (cmdIndex == 1) {
+        if (cmdBuff[0] == START1) {
+          checkHeader = 1;
+        } else {
+          checkHeader = 0;
+          cmdIndex = 0;
+        }
+      } else if (cmdIndex == 2)
+      {
+        if (checkHeader == 1) {
+          if (cmdBuff[1] == START2) {
+            checkHeader = 2;
+          } else {
+            checkHeader = 0;
+            cmdIndex = 0;
+          }
+        }
+      } else if (checkHeader == 2) {
+        if (cmdIndex == 3) {
+          receiveDtype =  cmdBuff[2];
+          dataBuff[cmdIndex - 3] = cmdBuff[cmdIndex - 1];
+        } else if (cmdIndex == 4) {
+          receiveLength = cmdBuff[3];
+          dataBuff[cmdIndex - 3] = cmdBuff[cmdIndex - 1];
+        } else if (cmdIndex > 4) {
+          if (receiveLength + 4 >= cmdIndex) {
+            dataBuff[cmdIndex - 3] = cmdBuff[cmdIndex - 1];
+          }
+          if (receiveLength + 4 <= cmdIndex) {
+            if (receiveDtype == PCcmdType_Control) {
+              CmdCtrlState = dataBuff[2];
+            } else if (receiveDtype == PCcmdType_GainTune) {
+              s32 Kp, Ki, Kd, test;
+              Kp = (dataBuff[5] << 24) | (dataBuff[4] << 16) | (dataBuff[3] << 8) | (dataBuff[2]);
+              Ki = (dataBuff[9] << 24) | (dataBuff[8] << 16) | (dataBuff[7] << 8) | (dataBuff[6]);
+              Kd = (dataBuff[13] << 24) | (dataBuff[12] << 16) | (dataBuff[11] << 8) | (dataBuff[10]);
+              test = 0x12345678;
+              Send_String("GainTune\n");
+              for (int i = 0; i < 12; i++) {
+                Send_String(String(dataBuff[i + 2], HEX));
+              }
+              Send_String("\n");
+              Send_String(String(test,HEX));
+              Send_String("\n");
+              Send_String(String(Kp,HEX));
+              Send_String("\n");
+              Send_String(String(Ki,HEX));
+              Send_String("\n");
+              Send_String(String(Kd,HEX));
+              Send_String("\n");
+              
+              EEP.Throttle_Kp = float(Kp);
+              EEP.Throttle_Ki = float(Ki);
+              EEP.Throttle_Kd = float(Kd);
+            }
+            checkHeader = 0;
+            cmdIndex = 0;
+          }
+        }
+      } else {
+        checkHeader = 0;
+        cmdIndex = 0;
+      }
+    }
+  }
+}
 

@@ -1,6 +1,27 @@
 import  processing.serial.*; //<>// //<>//
 
+enum cmdType
+{
+  cmdType_Control, 
+    cmdType_EEP_Write, 
+    cmdType_EEP_Read, 
+    cmdType_TrimTune, 
+    cmdType_TrimSet, 
+    cmdType_Stop, 
+    cmdType_Hover, 
+    cmdType_GainTune,
+};
+
+
+enum PCcmdType
+{
+  PCcmdType_Control, 
+    PCcmdType_GainTune
+};
+
+
 ReceiveData r_data;
+SendData s_data;
 int[]   data;
 Serial  serial;
 
@@ -8,6 +29,7 @@ void setup() {
   size(400, 250);
   data = new int [width];
   r_data = new ReceiveData();
+  s_data = new SendData();
   serial = new Serial( this, Serial.list()[0], 9600 );
 }
 
@@ -24,17 +46,17 @@ void draw() {
   fill(0xaa);
   ellipse(width*1/4+r_data.AnalogStick.Yaw, height*3/4-r_data.AnalogStick.Throttle, 20, 20);
   ellipse(width*3/4+r_data.AnalogStick.Roll, height*3/4-r_data.AnalogStick.Pitch, 20, 20);
-  
+
   //PFont font = createFont("Arial", 30);
   //textFont(font);
-  
+
   textSize(30);  
   textAlign(RIGHT, TOP);
   fill(0xaa);
   text("ControlState: "+strs[r_data.ControlState], width-10, 0+10);
-  
+
   text("Height:"+ r_data.Range.Bottom + " mm", width-10, 0+50);
-  
+
   translate(width/2, height*1/3);
   rotateZ(radians(r_data.Attitude.Roll));
   rotateX(radians(r_data.Attitude.Pitch));
@@ -42,13 +64,17 @@ void draw() {
   box(200, 5, 300);
 }
 
+
+
 void keyPressed() {
   if (key == 'c') {
-    serial.write('c');
+    s_data.Send_CtrlState(cmdType.cmdType_Control);
   } else if (key == 's') {
-    serial.write('s');
+    s_data.Send_CtrlState(cmdType.cmdType_Stop);
   } else if (key == 't') {
-    serial.write('t');
+    s_data.Send_CtrlState(cmdType.cmdType_GainTune);
+  } else if (key == 'g') {
+    s_data.Send_Gain(0.2,0.3,2.6);
   }
 }
 
@@ -62,8 +88,9 @@ enum tType
     tType_Pressure, 
     tType_Temperature, 
     tType_AnalogStick, 
-    tType_ControlState,
+    tType_ControlState, 
     tType_Range,
+    tType_String,
 };
 
 String[] strs = { 
@@ -110,7 +137,7 @@ public class ReceiveData {
     if ( port.available() >= 0 ) {
       int input = port.read();
       cmdBuff[cmdIndex++] = (byte)input;
-
+       
       if (cmdIndex >= MAX_PACKET_LENGTH) {
         checkHeader = 0;
         cmdIndex = 0;
@@ -263,6 +290,13 @@ public class ReceiveData {
                 Range.Top    = UniteByte(dataBuff[11], dataBuff[10]);
                 Range.Bottom = UniteByte(dataBuff[13], dataBuff[12]);
                 //println(strs[ControlState]);
+              }else if(receiveDtype == tType.tType_String.ordinal()){
+                int i = 0;
+                while(dataBuff[2+i]!='\0'){
+                  print(char(dataBuff[2+i]));
+                  i++;
+                }
+                //println();
               }
               checkHeader = 0;
               cmdIndex = 0;
@@ -347,4 +381,85 @@ class AnalogStick_t {
   int Pitch;
   int Yaw;
   int Throttle;
+}
+
+
+public class SendData {
+
+  private static final byte START1 = 0x0A;
+  private static final byte START2 = 0x55;
+
+  private void Send_Processing(byte _cType, byte _data[], byte _length)
+  {
+    byte _packet[] = new byte[30];
+    //START CODE
+    _packet[0] = START1;
+    _packet[1] = START2;
+
+    //CONTROL TYPE
+    _packet[2] = _cType;
+
+    //LENGTH
+    _packet[3] = _length;
+
+    //DATA
+    for (int i = 0; i < _length; i++)
+    {
+      _packet[i + 4] = _data[i];
+    }
+
+    for (int i = 0; i < _length+4; i++) {
+      serial.write(_packet[i]);
+    }
+  }
+
+  public void Send_CtrlState(cmdType c)
+  {
+    byte data[] = new byte[1];
+    byte len = 1;
+    byte cType = (byte)PCcmdType.PCcmdType_Control.ordinal();
+
+    data[0] = (byte)c.ordinal();
+
+    Send_Processing(cType, data, len);
+  }
+
+  public void Send_Gain(float Kp, float Ki, float Kd)
+  {
+    byte data[] = new byte[12];
+    byte len = 12;
+    byte cType = (byte)PCcmdType.PCcmdType_GainTune.ordinal();
+    int _Kp, _Ki, _Kd;
+
+println(Kp);
+println(Ki);
+println(Kd);
+
+    _Kp = Float.floatToIntBits(Kp);
+    _Ki = Float.floatToIntBits(Ki);
+    _Kd = Float.floatToIntBits(Kd);
+
+println(hex(_Kp));
+println(hex(_Ki));
+println(hex(_Kd));
+
+    data[0] =  (byte)((_Kp>>0) & 0xff);
+    data[1] = (byte)((_Kp>>8) & 0xff);
+    data[2] = (byte)((_Kp>>16) & 0xff);
+    data[3] = (byte)((_Kp>>24) & 0xff);
+    data[4] =  (byte)((_Ki>>0) & 0xff);
+    data[5] = (byte)((_Ki>>8) & 0xff);
+    data[6] = (byte)((_Ki>>16) & 0xff);
+    data[7] = (byte)((_Ki>>24) & 0xff);
+    data[8] =  (byte)((_Kd>>0) & 0xff);
+    data[9] = (byte)((_Kd>>8) & 0xff);
+    data[10] = (byte)((_Kd>>16) & 0xff);
+    data[11] = (byte)((_Kd>>24) & 0xff);
+
+    for(int i=0;i<12;i++){
+      println(hex(data[i]));
+    }
+
+    Send_Processing(cType, data, len);
+  }
 }
