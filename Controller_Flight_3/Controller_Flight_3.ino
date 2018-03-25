@@ -18,12 +18,6 @@ byte IR_Sensor;
 byte ControlState;
 byte CmdCtrlState;
 
-
-float dt, preTime;
-float P, I, D, preP;
-float current_h;
-float target_h;
-float output;
 char buff[10];
 
 void setup()
@@ -36,7 +30,6 @@ void setup()
   for (int i = 0; i < 8; i++) {
     pinMode(11 + i, INPUT);
   }
-  preTime = micros();
 }
 
 void get_analog_stick(void)
@@ -399,63 +392,73 @@ void state_Stop(boolean state_change)
   CoDrone.FlightEvent(Stop);
 }
 
+float e[3];
+float Ts;
+float P, I, D;
+float h, d_h;
+float u, du;
+float preTime;
 void state_Hover(boolean state_change)
 {
-  current_h = (float)CoDrone.droneRange[5];
+  h = (float)CoDrone.droneRange[5];
   if (state_change) {
-    //target_h = current_h;
-    target_h = 1000;
-    P=0;
-    I=0;
-    D=0;
+    d_h = h;     //とりあえず
+    u = 0;
+    e[0]=0;
+    e[1]=0;
+    e[2]=0;
+    preTime = micros();
+    return;
   }
+  e[0]  = d_h - h;
 
-  dt = (micros() - preTime) / 1000000;
+  Ts = (micros() - preTime) / 1000000;
   preTime = micros();
-  P  = target_h - current_h;
-  I += P * dt;
-  D  = (P - preP) / dt;
-  preP = P;
-  output = EEP.Throttle_Kp * P + EEP.Throttle_Ki * I + EEP.Throttle_Kd * D + 30;
 
-    Send_String("P: ");
-    dtostrf(P, 8, 6, buff);
-    Send_String(buff);
-//  
-//    Send_String("\tI: ");
-//    dtostrf(I, 8, 6, buff);
-//    Send_String(buff);
-//  
-    Send_String("\tD: ");
-    dtostrf(D, 8, 6, buff);
-    Send_String(buff);
-    
-    Send_String("\tcurrent_h: ");
-    dtostrf(current_h, 8, 6, buff);
-    Send_String(buff);
+  P =  EEP.Throttle_Kp * (e[0] - e[1]);
+  I =  EEP.Throttle_Ki * e[0] * Ts;
+  D =  EEP.Throttle_Kd * (e[0] - 2 * e[1] + e[2]) / Ts;
+  du = P + I + D;
+  RANGE_CHECK(du, -100, 100);
+  u = u + du;
+  
+  Send_String("\tu: ");
+  dtostrf(u, 8, 6, buff);
+  Send_String(buff);
 
-    Send_String("\toutput: ");
-    dtostrf(output, 8, 6, buff);
-    Send_String(buff);
+  Send_String("\th: ");
+  dtostrf(h, 8, 6, buff);
+  Send_String(buff);
 
-    Send_String("\tdt: ");
-    dtostrf(dt, 8, 6, buff);
-    Send_String(buff);
-    Send_String("\n");
-
-  if (output < -100) {
-    output = -100;
-  }
-  if (output > 100) {
-    output = 100;
-  }
-
-
+  Send_String("\td_h: ");
+  dtostrf(d_h, 8, 6, buff);
+  Send_String(buff);
+  Send_String("\n");
+  
+  RANGE_CHECK(u, -100, 100);
+  
+  e[2]  = e[1];
+  e[1]  = e[0];
+  
   YAW       = Yaw;      // Set the A3 analog pin to control the Yaw
-  THROTTLE  = (int)output;   // Set the A4 analog pin to control the Throttle
+  THROTTLE  = (int)u;   // Set the A4 analog pin to control the Throttle
   ROLL      = Roll;     // Set the A5 analog pin to control the Roll
   PITCH     = Pitch;    // Set the A6 analog pin to control the Pitch
   CoDrone.Control(SEND_INTERVAL); // Send the new flight commands at the SEND_INTERVAL (50ms)
+  
+//  Send_String("P: ");
+//  dtostrf(P, 8, 6, buff);
+//  Send_String(buff);
+//  
+//  Send_String("\tI: ");
+//  dtostrf(I, 8, 6, buff);
+//  Send_String(buff);
+//
+//  Send_String("\tD: ");
+//  dtostrf(D, 8, 6, buff);
+//  Send_String(buff);
+
+
 }
 
 void state_GainTune(boolean state_change)

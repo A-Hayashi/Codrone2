@@ -74,7 +74,7 @@ void keyPressed() {
   } else if (key == 't') {
     s_data.Send_CtrlState(cmdType.cmdType_GainTune);
   } else if (key == 'g') {
-    s_data.Send_Gain(0.04,0,0.01);
+    s_data.Send_Gain(0.1,0.06,0.05);
   }
 }
 
