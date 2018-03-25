@@ -92,6 +92,7 @@ void send_pcdata()
   if (interval50.check()) {
     Send_Attitude();
     Send_Range();
+    Send_AltitudeControl();
     //    Send_ImuRawAndAngl();
     //    Send_Pressure();
     //    Send_IrMessage();
@@ -283,12 +284,16 @@ byte trans_state(byte state)
 {
   static byte next_state;
 
-  if (((IR_Sensor & 0xff) == 0x00) || (CmdCtrlState == cmdType_Control)) {
+  if ((IR_Sensor & 0xff) == 0x00) {
     next_state = cmdType_Control;
-  } if (((IR_Sensor & 0x80) != 0x00) || (CmdCtrlState == cmdType_Stop)) {
+  } if ((IR_Sensor & 0x01) != 0x00) {
     next_state = cmdType_Stop;
-  } else if (((IR_Sensor & 0x01) != 0x00) || (CmdCtrlState == cmdType_Hover)) {
+  } else if ((IR_Sensor & 0x80) != 0x00) {
     next_state = cmdType_Hover;
+  } else if (CmdCtrlState == cmdType_EEP_Write) {
+    next_state = cmdType_EEP_Write;
+  } else if (CmdCtrlState == cmdType_EEP_Read) {
+    next_state = cmdType_EEP_Read;
   } else if (CmdCtrlState == cmdType_GainTune) {
     next_state = cmdType_TrimTune;
   }
@@ -364,8 +369,8 @@ void state_EEP_Read(boolean state_change)
 {
   if (state_change) {
     eep_read();
-    CoDrone.Buzz(2000, 4);
     CoDrone.Buzz(4000, 4);
+    CoDrone.Buzz(2000, 4);
   }
 }
 
@@ -404,9 +409,9 @@ void state_Hover(boolean state_change)
   if (state_change) {
     d_h = h;     //とりあえず
     u = 0;
-    e[0]=0;
-    e[1]=0;
-    e[2]=0;
+    e[0] = 0;
+    e[1] = 0;
+    e[2] = 0;
     preTime = micros();
     return;
   }
@@ -421,45 +426,82 @@ void state_Hover(boolean state_change)
   du = P + I + D;
   RANGE_CHECK(du, -100, 100);
   u = u + du;
-  
-  Send_String("\tu: ");
-  dtostrf(u, 8, 6, buff);
-  Send_String(buff);
 
-  Send_String("\th: ");
-  dtostrf(h, 8, 6, buff);
-  Send_String(buff);
+  //  Send_String("\tu: ");
+  //  dtostrf(u, 8, 6, buff);
+  //  Send_String(buff);
+  //
+  //  Send_String("\th: ");
+  //  dtostrf(h, 8, 6, buff);
+  //  Send_String(buff);
+  //
+  //  Send_String("\td_h: ");
+  //  dtostrf(d_h, 8, 6, buff);
+  //  Send_String(buff);
+  //  Send_String("\n");
 
-  Send_String("\td_h: ");
-  dtostrf(d_h, 8, 6, buff);
-  Send_String(buff);
-  Send_String("\n");
-  
   RANGE_CHECK(u, -100, 100);
-  
+
   e[2]  = e[1];
   e[1]  = e[0];
-  
+
   YAW       = Yaw;      // Set the A3 analog pin to control the Yaw
   THROTTLE  = (int)u;   // Set the A4 analog pin to control the Throttle
   ROLL      = Roll;     // Set the A5 analog pin to control the Roll
   PITCH     = Pitch;    // Set the A6 analog pin to control the Pitch
   CoDrone.Control(SEND_INTERVAL); // Send the new flight commands at the SEND_INTERVAL (50ms)
-  
-//  Send_String("P: ");
-//  dtostrf(P, 8, 6, buff);
-//  Send_String(buff);
-//  
-//  Send_String("\tI: ");
-//  dtostrf(I, 8, 6, buff);
-//  Send_String(buff);
-//
-//  Send_String("\tD: ");
-//  dtostrf(D, 8, 6, buff);
-//  Send_String(buff);
+
+  //  Send_String("P: ");
+  //  dtostrf(P, 8, 6, buff);
+  //  Send_String(buff);
+  //
+  //  Send_String("\tI: ");
+  //  dtostrf(I, 8, 6, buff);
+  //  Send_String(buff);
+  //
+  //  Send_String("\tD: ");
+  //  dtostrf(D, 8, 6, buff);
+  //  Send_String(buff);
 
 
 }
+
+
+void Send_AltitudeControl()
+{
+  byte data[14];
+  byte len = 14;
+
+  short _d_h, _h;
+  short _P, _I, _D;
+  short _du, _u;
+
+  _d_h = (short)d_h;
+  _h = (short)h;
+  _P = (short)P;
+  _I = (short)I;
+  _D = (short)D;
+  _du = (short)du;
+  _u = (short)u;
+
+  data[0] = LowB(_d_h);
+  data[1] = HighB(_d_h);
+  data[2] = LowB(_h);
+  data[3] = HighB(_h);
+  data[4] = LowB(_P);
+  data[5] = HighB(_P);
+  data[6] = LowB(_I);
+  data[7] = HighB(_I);
+  data[8] = LowB(_D);
+  data[9] = HighB(_D);
+  data[10] = LowB(_du);
+  data[11] = HighB(_du);
+  data[12] = LowB(_u);
+  data[13] = HighB(_u);
+
+  Send_Processing(tType_AltitudeControl, data, len);
+}
+
 
 void state_GainTune(boolean state_change)
 {
@@ -573,7 +615,6 @@ void receive_pcdata(void) {
               EEP.Throttle_Ki = (float)Ki / 1000;
               EEP.Throttle_Kd = (float)Kd / 1000;
 
-              Send_String("GainTune\n");
               Send_String("Kp: ");
               dtostrf(EEP.Throttle_Kp, 8, 6, buff);
               Send_String(buff);
@@ -586,6 +627,8 @@ void receive_pcdata(void) {
               dtostrf(EEP.Throttle_Kd, 8, 6, buff);
               Send_String(buff);
               Send_String("\n");
+              CoDrone.Buzz(4000, 4);
+              CoDrone.Buzz(4000, 4);
             }
             checkHeader = 0;
             cmdIndex = 0;

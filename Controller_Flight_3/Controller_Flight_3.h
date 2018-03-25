@@ -37,6 +37,7 @@ enum tType
   tType_ControlState,
   tType_Range,
   tType_String,
+  tType_AltitudeControl,
 };
 
 enum cmdType

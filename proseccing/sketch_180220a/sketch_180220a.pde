@@ -25,16 +25,21 @@ SendData s_data;
 int[]   data;
 Serial  serial;
 
+graphMonitor testGraph;
 void setup() {  
   size(400, 250);
   data = new int [width];
   r_data = new ReceiveData();
   s_data = new SendData();
   serial = new Serial( this, Serial.list()[0], 9600 );
+
+  frameRate(100);
+  smooth();
+  testGraph = new graphMonitor("Altitude", 100, 50, 1000, 400);
 }
 
 public void settings() {
-  size(800, 800, P3D);
+  size(1440, 900, P3D);
 }
 
 void serialEvent(Serial port) {
@@ -42,25 +47,25 @@ void serialEvent(Serial port) {
 }
 
 void draw() {
-  background(0);
-  fill(0xaa);
-  ellipse(width*1/4+r_data.AnalogStick.Yaw, height*3/4-r_data.AnalogStick.Throttle, 20, 20);
-  ellipse(width*3/4+r_data.AnalogStick.Roll, height*3/4-r_data.AnalogStick.Pitch, 20, 20);
+  background(0xff);
 
-  //PFont font = createFont("Arial", 30);
-  //textFont(font);
+  testGraph.graphDraw(r_data.AltitudeControl.d_h, r_data.AltitudeControl.h, 0);
+
+  fill(0, 255, 0);
+  ellipse(150+r_data.AnalogStick.Yaw, height-150-r_data.AnalogStick.Throttle, 20, 20);
+  ellipse(150+300+r_data.AnalogStick.Roll, height-150-r_data.AnalogStick.Pitch, 20, 20);
 
   textSize(30);  
   textAlign(RIGHT, TOP);
-  fill(0xaa);
+  fill(0, 255, 0);
   text("ControlState: "+strs[r_data.ControlState], width-10, 0+10);
-
   text("Height:"+ r_data.Range.Bottom + " mm", width-10, 0+50);
 
-  translate(width/2, height*1/3);
+  translate(width-300, height-300);
   rotateZ(radians(r_data.Attitude.Roll));
   rotateX(radians(r_data.Attitude.Pitch));
   rotateY(radians(-r_data.Attitude.Yaw));
+  fill(0, 255, 0);
   box(200, 5, 300);
 }
 
@@ -73,8 +78,12 @@ void keyPressed() {
     s_data.Send_CtrlState(cmdType.cmdType_Stop);
   } else if (key == 't') {
     s_data.Send_CtrlState(cmdType.cmdType_GainTune);
+  } else if (key == 'w') {
+    s_data.Send_CtrlState(cmdType.cmdType_EEP_Write);
+  } else if (key == 'r') {
+    s_data.Send_CtrlState(cmdType.cmdType_EEP_Read);
   } else if (key == 'g') {
-    s_data.Send_Gain(0.1,0.06,0.05);
+    s_data.Send_Gain(0.1, 0.07, 0.05);
   }
 }
 
@@ -89,8 +98,9 @@ enum tType
     tType_Temperature, 
     tType_AnalogStick, 
     tType_ControlState, 
-    tType_Range,
-    tType_String,
+    tType_Range, 
+    tType_String, 
+    tType_AltitudeControl,
 };
 
 String[] strs = { 
@@ -126,6 +136,7 @@ public class ReceiveData {
   Temperature_t Temperature = new Temperature_t();
   AnalogStick_t AnalogStick = new AnalogStick_t(); 
   Range_t Range = new Range_t();
+  AltitudeControl_t AltitudeControl = new AltitudeControl_t();
   byte ControlState;
 
 
@@ -137,7 +148,7 @@ public class ReceiveData {
     if ( port.available() >= 0 ) {
       int input = port.read();
       cmdBuff[cmdIndex++] = (byte)input;
-       
+
       if (cmdIndex >= MAX_PACKET_LENGTH) {
         checkHeader = 0;
         cmdIndex = 0;
@@ -290,13 +301,26 @@ public class ReceiveData {
                 Range.Top    = UniteByte(dataBuff[11], dataBuff[10]);
                 Range.Bottom = UniteByte(dataBuff[13], dataBuff[12]);
                 //println(strs[ControlState]);
-              }else if(receiveDtype == tType.tType_String.ordinal()){
+              } else if (receiveDtype == tType.tType_String.ordinal()) {
                 int i = 0;
-                while(dataBuff[2+i]!='\0'){
+                while (dataBuff[2+i]!='\0') {
                   print(char(dataBuff[2+i]));
                   i++;
                 }
                 //println();
+              } else if (receiveDtype == tType.tType_AltitudeControl.ordinal()) {
+                AltitudeControl.d_h = UniteByte(dataBuff[3], dataBuff[2]);
+                AltitudeControl.h = UniteByte(dataBuff[5], dataBuff[4]);
+                AltitudeControl.P = UniteByte(dataBuff[7], dataBuff[6]);
+                AltitudeControl.I = UniteByte(dataBuff[9], dataBuff[8]);
+                AltitudeControl.D = UniteByte(dataBuff[11], dataBuff[10]);
+                AltitudeControl.du = UniteByte(dataBuff[13], dataBuff[12]);
+                AltitudeControl.u = UniteByte(dataBuff[15], dataBuff[14]);
+
+                print(AltitudeControl.h);
+                print("\t");
+                print(AltitudeControl.d_h);
+                print("\n");
               }
               checkHeader = 0;
               cmdIndex = 0;
@@ -383,6 +407,16 @@ class AnalogStick_t {
   int Throttle;
 }
 
+class AltitudeControl_t {
+  int d_h;
+  int h;
+  int P;
+  int I;
+  int D;
+  int du;
+  int u;
+}
+
 
 public class SendData {
 
@@ -434,7 +468,7 @@ public class SendData {
     _Kp = (int)(Kp*1000);
     _Ki = (int)(Ki*1000);
     _Kd = (int)(Kd*1000);
-    
+
     println("GainTune");
 
     data[0] =  (byte)((_Kp>>0) & 0xff);
@@ -451,5 +485,81 @@ public class SendData {
     data[11] = (byte)((_Kd>>24) & 0xff);
 
     Send_Processing(cType, data, len);
+  }
+}
+
+
+
+
+
+class graphMonitor {
+  String TITLE;
+  int X_POSITION, Y_POSITION;
+  int X_LENGTH, Y_LENGTH;
+  float [] y1, y2, y3;
+  float maxRange;
+  graphMonitor(String _TITLE, int _X_POSITION, int _Y_POSITION, int _X_LENGTH, int _Y_LENGTH) {
+    TITLE = _TITLE;
+    X_POSITION = _X_POSITION;
+    Y_POSITION = _Y_POSITION;
+    X_LENGTH   = _X_LENGTH;
+    Y_LENGTH   = _Y_LENGTH;
+    y1 = new float[X_LENGTH];
+    y2 = new float[X_LENGTH];
+    y3 = new float[X_LENGTH];
+    for (int i = 0; i < X_LENGTH; i++) {
+      y1[i] = 0;
+      y2[i] = 0;
+      y3[i] = 0;
+    }
+  }
+
+  void graphDraw(float _y1, float _y2, float _y3) {
+    y1[X_LENGTH - 1] = _y1;
+    y2[X_LENGTH - 1] = _y2;
+    y3[X_LENGTH - 1] = _y3;
+    for (int i = 0; i < X_LENGTH - 1; i++) {
+      y1[i] = y1[i + 1];
+      y2[i] = y2[i + 1];
+      y3[i] = y3[i + 1];
+    }
+    maxRange = 1;
+    for (int i = 0; i < X_LENGTH - 1; i++) {
+      maxRange = (abs(y1[i]) > maxRange ? abs(y1[i]) : maxRange);
+      maxRange = (abs(y2[i]) > maxRange ? abs(y2[i]) : maxRange);
+      maxRange = (abs(y3[i]) > maxRange ? abs(y3[i]) : maxRange);
+    }
+
+    pushMatrix();
+
+    translate(X_POSITION, Y_POSITION);
+    fill(240);
+    stroke(130);
+    strokeWeight(1);
+    rect(0, 0, X_LENGTH, Y_LENGTH);
+    line(0, Y_LENGTH / 2, X_LENGTH, Y_LENGTH / 2);
+
+    textSize(25);
+    fill(60);
+    textAlign(LEFT, BOTTOM);
+    text(TITLE, 20, -5);
+    textSize(22);
+    textAlign(RIGHT);
+    text(0, -5, Y_LENGTH / 2 + 7);
+    text(nf(maxRange, 0, 1), -5, 18);
+    text(nf(-1 * maxRange, 0, 1), -5, Y_LENGTH);
+
+    translate(0, Y_LENGTH / 2);
+    scale(1, -1);
+    strokeWeight(1);
+    for (int i = 0; i < X_LENGTH - 1; i++) {
+      stroke(255, 0, 0);
+      line(i, y1[i] * (Y_LENGTH / 2) / maxRange, i + 1, y1[i + 1] * (Y_LENGTH / 2) / maxRange);
+      stroke(255, 0, 255);
+      line(i, y2[i] * (Y_LENGTH / 2) / maxRange, i + 1, y2[i + 1] * (Y_LENGTH / 2) / maxRange);
+      stroke(0, 0, 0);
+      line(i, y3[i] * (Y_LENGTH / 2) / maxRange, i + 1, y3[i + 1] * (Y_LENGTH / 2) / maxRange);
+    }
+    popMatrix();
   }
 }
