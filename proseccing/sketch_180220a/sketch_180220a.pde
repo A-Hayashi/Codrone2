@@ -74,7 +74,7 @@ void keyPressed() {
   } else if (key == 't') {
     s_data.Send_CtrlState(cmdType.cmdType_GainTune);
   } else if (key == 'g') {
-    s_data.Send_Gain(0.2,0.3,2.6);
+    s_data.Send_Gain(0.04,0,0.01);
   }
 }
 
@@ -431,17 +431,11 @@ public class SendData {
     byte cType = (byte)PCcmdType.PCcmdType_GainTune.ordinal();
     int _Kp, _Ki, _Kd;
 
-println(Kp);
-println(Ki);
-println(Kd);
-
-    _Kp = Float.floatToIntBits(Kp);
-    _Ki = Float.floatToIntBits(Ki);
-    _Kd = Float.floatToIntBits(Kd);
-
-println(hex(_Kp));
-println(hex(_Ki));
-println(hex(_Kd));
+    _Kp = (int)(Kp*1000);
+    _Ki = (int)(Ki*1000);
+    _Kd = (int)(Kd*1000);
+    
+    println("GainTune");
 
     data[0] =  (byte)((_Kp>>0) & 0xff);
     data[1] = (byte)((_Kp>>8) & 0xff);
@@ -455,10 +449,6 @@ println(hex(_Kd));
     data[9] = (byte)((_Kd>>8) & 0xff);
     data[10] = (byte)((_Kd>>16) & 0xff);
     data[11] = (byte)((_Kd>>24) & 0xff);
-
-    for(int i=0;i<12;i++){
-      println(hex(data[i]));
-    }
 
     Send_Processing(cType, data, len);
   }

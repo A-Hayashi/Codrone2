@@ -24,6 +24,7 @@ float P, I, D, preP;
 float current_h;
 float target_h;
 float output;
+char buff[10];
 
 void setup()
 {
@@ -105,20 +106,7 @@ void send_pcdata()
     Send_ControlState();
   }
   if (interval1000.check()) {
-    char buff[10];
 
-    Send_String("Kp: ");
-    dtostrf(EEP.Throttle_Kp, 8, 6, buff);
-    Send_String(buff);
-    Send_String("\n");
-    Send_String("Kd: ");
-    dtostrf(EEP.Throttle_Ki, 8, 6, buff);
-    Send_String(buff);
-    Send_String("\n");
-    Send_String("Ki: ");
-    dtostrf(EEP.Throttle_Kd, 8, 6, buff);
-    Send_String(buff);
-    Send_String("\n");
   }
 }
 
@@ -417,6 +405,9 @@ void state_Hover(boolean state_change)
   if (state_change) {
     //target_h = current_h;
     target_h = 1000;
+    P=0;
+    I=0;
+    D=0;
   }
 
   dt = (micros() - preTime) / 1000000;
@@ -425,7 +416,32 @@ void state_Hover(boolean state_change)
   I += P * dt;
   D  = (P - preP) / dt;
   preP = P;
-  output += EEP.Throttle_Kp * P + EEP.Throttle_Ki * I + EEP.Throttle_Kd * D;
+  output = EEP.Throttle_Kp * P + EEP.Throttle_Ki * I + EEP.Throttle_Kd * D + 30;
+
+    Send_String("P: ");
+    dtostrf(P, 8, 6, buff);
+    Send_String(buff);
+//  
+//    Send_String("\tI: ");
+//    dtostrf(I, 8, 6, buff);
+//    Send_String(buff);
+//  
+    Send_String("\tD: ");
+    dtostrf(D, 8, 6, buff);
+    Send_String(buff);
+    
+    Send_String("\tcurrent_h: ");
+    dtostrf(current_h, 8, 6, buff);
+    Send_String(buff);
+
+    Send_String("\toutput: ");
+    dtostrf(output, 8, 6, buff);
+    Send_String(buff);
+
+    Send_String("\tdt: ");
+    dtostrf(dt, 8, 6, buff);
+    Send_String(buff);
+    Send_String("\n");
 
   if (output < -100) {
     output = -100;
@@ -433,6 +449,7 @@ void state_Hover(boolean state_change)
   if (output > 100) {
     output = 100;
   }
+
 
   YAW       = Yaw;      // Set the A3 analog pin to control the Yaw
   THROTTLE  = (int)output;   // Set the A4 analog pin to control the Throttle
@@ -544,28 +561,28 @@ void receive_pcdata(void) {
             if (receiveDtype == PCcmdType_Control) {
               CmdCtrlState = dataBuff[2];
             } else if (receiveDtype == PCcmdType_GainTune) {
-              s32 Kp, Ki, Kd, test;
+              int Kp, Ki, Kd;
               Kp = (dataBuff[5] << 24) | (dataBuff[4] << 16) | (dataBuff[3] << 8) | (dataBuff[2]);
               Ki = (dataBuff[9] << 24) | (dataBuff[8] << 16) | (dataBuff[7] << 8) | (dataBuff[6]);
               Kd = (dataBuff[13] << 24) | (dataBuff[12] << 16) | (dataBuff[11] << 8) | (dataBuff[10]);
-              test = 0x12345678;
+
+              EEP.Throttle_Kp = (float)Kp / 1000;
+              EEP.Throttle_Ki = (float)Ki / 1000;
+              EEP.Throttle_Kd = (float)Kd / 1000;
+
               Send_String("GainTune\n");
-              for (int i = 0; i < 12; i++) {
-                Send_String(String(dataBuff[i + 2], HEX));
-              }
+              Send_String("Kp: ");
+              dtostrf(EEP.Throttle_Kp, 8, 6, buff);
+              Send_String(buff);
               Send_String("\n");
-              Send_String(String(test,HEX));
+              Send_String("Ki: ");
+              dtostrf(EEP.Throttle_Ki, 8, 6, buff);
+              Send_String(buff);
               Send_String("\n");
-              Send_String(String(Kp,HEX));
+              Send_String("Kd: ");
+              dtostrf(EEP.Throttle_Kd, 8, 6, buff);
+              Send_String(buff);
               Send_String("\n");
-              Send_String(String(Ki,HEX));
-              Send_String("\n");
-              Send_String(String(Kd,HEX));
-              Send_String("\n");
-              
-              EEP.Throttle_Kp = float(Kp);
-              EEP.Throttle_Ki = float(Ki);
-              EEP.Throttle_Kd = float(Kd);
             }
             checkHeader = 0;
             cmdIndex = 0;
